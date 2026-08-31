@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        font-size: 17px;
+    }
+
+    body {
+        @apply bg-gray-50 text-gray-800 antialiased;
+    }
+
+    ::selection {
+        @apply bg-brand-600 text-white;
+    }
+}
+
+@layer components {
+    /* Tarjeta estándar de la aplicación */
+    .card {
+        @apply bg-white rounded-xl shadow-card border border-gray-100;
+    }
+
+    /* Etiqueta/badge de estado */
+    .badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    }
+
+    /* Botón primario (rojo institucional UDG) */
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-brand-700 border border-transparent rounded-lg font-semibold text-xs text-white uppercase tracking-widest hover:bg-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 active:bg-brand-900 transition ease-in-out duration-150 shadow-sm;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg font-semibold text-xs text-gray-700 uppercase tracking-widest hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 active:bg-gray-100 transition ease-in-out duration-150;
+    }
+
+    .btn-danger {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 border border-transparent rounded-lg font-semibold text-xs text-white uppercase tracking-widest hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:bg-red-800 transition ease-in-out duration-150 shadow-sm;
+    }
+
+    .btn-success {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 border border-transparent rounded-lg font-semibold text-xs text-white uppercase tracking-widest hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:bg-emerald-800 transition ease-in-out duration-150 shadow-sm;
+    }
+
+    /* Botones-chip para acciones en listas/tablas (Ver, Editar, Firmar, Eliminar...) */
+    .action {
+        @apply inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold border border-transparent transition ease-in-out duration-150 shadow-sm;
+    }
+
+    .action-view {
+        @apply action bg-brand-50 text-brand-700 hover:bg-brand-100 border-brand-100;
+    }
+
+    .action-edit {
+        @apply action bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-indigo-100;
+    }
+
+    .action-sign {
+        @apply action bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-100;
+    }
+
+    .action-danger {
+        @apply action bg-red-50 text-red-700 hover:bg-red-100 border-red-100;
+    }
+
+    .action-neutral {
+        @apply action bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200;
+    }
+
+    /* Encabezado de tabla */
+    .th {
+        @apply px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider;
+    }
+
+    /* Campo de entrada con foco en rojo institucional */
+    .input {
+        @apply border-gray-300 focus:border-brand-500 focus:ring-brand-500 rounded-lg shadow-sm;
+    }
+}
