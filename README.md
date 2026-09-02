@@ -68,12 +68,7 @@ SESSION_DRIVER=database
 php artisan migrate --seed
 ```
 
-El seeder crea los usuarios iniciales y los tipos de documento base:
-
-| Rol        | Correo              |
-|------------|---------------------|
-| admin      | `admin@correo.com`  |
-| ventanilla | `ventanilla@correo.com` |
+El seeder crea los usuarios iniciales y los tipos de documento base.
 
 > **Importante:** las contraseñas iniciales se definen en `database/seeders/DatabaseSeeder.php`. Cámbialas en producción.
 
