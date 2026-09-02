@@ -1,6 +1,6 @@
-# Firmas CUCEI — Sistema de Control Escolar
+# Firmas
 
-Sistema web de control escolar para el registro de **alumnos**, **documentos** y **firmas** de la CUCEI. Permite importar alumnos por ciclo desde archivos CSV, generar documentos con folio automático, capturar firmas (dibujadas con tableta Wacom o con el mouse) y llevar un panel de control con indicadores del trabajo realizado.
+Sistema web para el registro de **alumnos**, **documentos** y **firmas**. Permite importar alumnos por ciclo desde archivos CSV, generar documentos con folio automático, capturar firmas (dibujadas con tableta Wacom o con el mouse) y llevar un panel de control con indicadores del trabajo realizado.
 
 ## Características
 
@@ -46,14 +46,14 @@ php artisan key:generate
 Edita `.env` y ajusta la conexión de base de datos (MySQL):
 
 ```env
-APP_NAME=FirmasCUCEI
+APP_NAME=Firmas
 APP_ENV=local
 APP_URL=http://localhost:8000
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=control_escolar
+DB_DATABASE=firmas
 DB_USERNAME=root
 DB_PASSWORD=
 
@@ -70,10 +70,10 @@ php artisan migrate --seed
 
 El seeder crea los usuarios iniciales y los tipos de documento base:
 
-| Rol        | Correo                 |
-|------------|------------------------|
-| admin      | `admin@cucei.com`      |
-| ventanilla | `ventanilla@cucei.com` |
+| Rol        | Correo              |
+|------------|---------------------|
+| admin      | `admin@correo.com`  |
+| ventanilla | `ventanilla@correo.com` |
 
 > **Importante:** las contraseñas iniciales se definen en `database/seeders/DatabaseSeeder.php`. Cámbialas en producción.
 
@@ -120,7 +120,7 @@ npm run dev   # o: npm run build
 
 ## Pruebas
 
-La suite de pruebas usa una base MySQL de test (`control_escolar_test`). Ejecuta:
+La suite de pruebas usa una base MySQL de test (`firmas_test`). Ejecuta:
 
 ```bash
 vendor\bin\phpunit        # en Windows
@@ -132,7 +132,3 @@ vendor\bin\phpunit        # en Windows
 ## Notas de rendimiento
 
 Se decidió **no usar `%...%` (subcadena) en la búsqueda de códigos** porque, en tablas de cientos de miles de filas, fuerza un escaneo completo del pivote en vez de usar el índice. La búsqueda por código usa **prefijo** `LIKE 'termino%'` (índice B-tree) y la búsqueda por nombre usa **FULLTEXT**. Los listados por defecto se cachean y el caché se regenera al terminar una importación.
-
-## Contribuir
-
-Proyecto interno de la CUCEI. Para cambios, crea una rama, haz *pull request* y describe el cambio y cómo lo probaste.
