@@ -70,12 +70,12 @@ php artisan migrate --seed
 
 El seeder crea los usuarios iniciales y los tipos de documento base:
 
-| Rol        | Correo                  | Contraseña       |
-|------------|-------------------------|------------------|
-| admin      | `admin@cucei.com`       | `Admin12345`     |
-| ventanilla | `ventanilla@cucei.com`  | `Ventanilla12345`|
+| Rol        | Correo                 |
+|------------|------------------------|
+| admin      | `admin@cucei.com`      |
+| ventanilla | `ventanilla@cucei.com` |
 
-> **Importante:** cambia estas contraseñas en producción.
+> **Importante:** las contraseñas iniciales se definen en `database/seeders/DatabaseSeeder.php`. Cámbialas en producción.
 
 5. Iniciar el servidor de desarrollo y el worker de colas (en dos terminales):
 
