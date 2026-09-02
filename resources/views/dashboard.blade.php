@@ -52,6 +52,37 @@
             </div>
 
             <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Desglose por tipo de documento -->
+                <div class="card overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h3 class="font-semibold text-gray-800">Documentos por tipo</h3>
+                    </div>
+                    <div class="px-6 py-4">
+                        @forelse($documentosPorTipo as $dt)
+                            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                                <div class="text-sm text-gray-800">{{ $dt->tipoDocumento?->nombre ?? 'Tipo eliminado' }}</div>
+                                <div class="text-sm font-semibold text-gray-700">{{ number_format($dt->total) }}</div>
+                            </div>
+                        @empty
+                            <p class="text-sm text-gray-500">No hay documentos registrados.</p>
+                        @endforelse
+                    </div>
+                </div>
+
+                <div class="card overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-100">
+                        <h3 class="font-semibold text-gray-800">Actividad reciente</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="flex items-center justify-between py-2 border-b border-gray-100">
+                            <div class="text-sm text-gray-800">Firmas registradas en los últimos 30 días</div>
+                            <div class="text-xl font-bold text-emerald-600">{{ number_format($firmasUltimoMes) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card overflow-hidden">
                     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 class="font-semibold text-gray-800">Últimas importaciones</h3>
@@ -90,7 +121,7 @@
                         @forelse($ultimosDocumentos as $doc)
                             <a href="{{ route('documentos.show', $doc) }}" class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50">
                                 <div>
-                                    <div class="text-sm text-gray-800 font-medium">{{ $doc->alumno->nombre_completo }}</div>
+                                    <div class="text-sm text-gray-800 font-medium">{{ $doc->alumno?->nombre_completo ?? 'Alumno eliminado' }}</div>
                                     <div class="text-xs text-gray-500">{{ $doc->tipoDocumento->nombre }} • {{ $doc->fecha?->format('d/m/Y H:i') }}</div>
                                 </div>
                                 @if($doc->firma)

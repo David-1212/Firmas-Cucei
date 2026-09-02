@@ -27,10 +27,15 @@
                     <h3 class="font-semibold text-gray-800">Detalle del documento</h3>
                 </div>
                 <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Alumno:</span> <span class="font-medium">{{ $documento->alumno->nombre_completo }}</span></div>
-                    <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Código:</span> <span class="font-mono font-medium text-brand-700">{{ $documento->alumno->codigo }}</span></div>
+                    <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Alumno:</span> <span class="font-medium">{{ $alumnoVisible?->nombre_completo ?? 'Alumno eliminado' }}</span>
+                        @if($alumnoVisible && $alumnoVisible->id !== $documento->alumno?->id)
+                            <span class="badge bg-purple-100 text-purple-700 text-xs">ciclo actual</span>
+                        @endif
+                    </div>
+                    <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Código:</span> <span class="font-mono font-medium text-brand-700">{{ $alumnoVisible?->codigo ?? '—' }}</span></div>
                     <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Tipo de documento:</span> {{ $documento->tipoDocumento->nombre }}</div>
                     <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Folio:</span> <span class="font-mono font-medium text-brand-700">{{ $documento->folio ?? '—' }}</span></div>
+                    <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Ciclo:</span> <span class="badge bg-purple-100 text-purple-700">{{ $ciclo }}</span></div>
                     <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Fecha y hora de generación:</span> <span class="font-medium">{{ $documento->fecha?->format('d/m/Y H:i:s') ?? '—' }}</span></div>
                     <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Generado por:</span> {{ $documento->usuario?->name ?? '—' }}</div>
                     @if($documento->observaciones)

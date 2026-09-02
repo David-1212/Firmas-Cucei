@@ -17,12 +17,14 @@ class BuscarAlumnosTest extends TestCase
 
         $user = User::factory()->create(['role' => 'admin']);
 
+        // Un término con dígitos se trata como código y se busca por PREFIJO
+        // (aprovecha el índice en alumnos.codigo).
         $response = $this->actingAs($user)->getJson('/documentos/buscar-alumnos?q=323');
 
         $response->assertStatus(200);
         $response->assertJsonFragment(['codigo' => '323066222']);
 
-        $parcial = $this->actingAs($user)->getJson('/documentos/buscar-alumnos?q=66');
+        $parcial = $this->actingAs($user)->getJson('/documentos/buscar-alumnos?q=323066');
         $parcial->assertStatus(200);
         $parcial->assertJsonFragment(['codigo' => '323066222']);
     }

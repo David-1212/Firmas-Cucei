@@ -6,6 +6,9 @@
                 <div class="text-xs text-gray-500">{{ $importacion->created_at->format('d/m/Y H:i') }} · {{ $importacion->usuario?->name }}</div>
             </div>
             <div class="flex items-center gap-3">
+                @if($importacion->ciclo)
+                    <span class="badge bg-purple-100 text-purple-700">Ciclo {{ $importacion->ciclo }}</span>
+                @endif
                 @php
                     $colores = ['pendiente'=>'bg-gray-100 text-gray-600','procesando'=>'bg-amber-100 text-amber-700','completado'=>'bg-green-100 text-green-700','fallido'=>'bg-red-100 text-red-700','cancelado'=>'bg-gray-200 text-gray-600'];
                 @endphp
@@ -29,14 +32,12 @@
             @endif
         </div>
         <div class="ins mt-2 flex flex-wrap items-center gap-2">
-            <span class="badge bg-green-100 text-green-700">{{ $importacion->insertadas }} nuevos</span>
-            <span class="badge bg-blue-100 text-blue-700">{{ $importacion->duplicadas }} ya existían</span>
-            <span class="badge bg-red-100 text-red-700">{{ $importacion->errores }} con error</span>
+            <span class="badge bg-green-100 text-green-700">{{ $importacion->insertadas }} alumnos</span>
         </div>
-        @if($importacion->estado === 'completado' && $importacion->duplicadas > 0)
+        @if($importacion->estado === 'completado')
             <div class="mt-2 text-xs text-gray-500 bg-white border border-gray-100 p-2 rounded-lg">
-                Solo se agregaron <strong class="text-green-700">{{ $importacion->insertadas }}</strong> alumnos nuevos; los
-                <strong class="text-blue-700">{{ $importacion->duplicadas }}</strong> restantes ya existían en el sistema y no se duplicaron.
+                Los alumnos de este archivo quedaron en el listado bajo el ciclo
+                @if($importacion->ciclo)<strong class="text-purple-700">{{ $importacion->ciclo }}</strong>@endif.
             </div>
         @endif
         @if($importacion->estado === 'procesando')

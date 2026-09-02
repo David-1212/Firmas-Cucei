@@ -3,12 +3,15 @@
 namespace App\Jobs;
 
 use App\Models\Alumno;
+use App\Models\Documento;
+use App\Models\Firma;
 use App\Models\Importacion;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 
 class ProcesarLoteAlumnos implements ShouldQueue
 {
@@ -33,155 +36,130 @@ class ProcesarLoteAlumnos implements ShouldQueue
         }
 
         $insertadas = 0;
-        $duplicadas = 0;
-        $errores = 0;
-        $duplicadosDetalle = [];
-        $erroresDetalle = [];
+        $insertados = [];
+        $primeroPorCodigo = [];
 
-        $existentes = Alumno::whereIn('matricula', array_column($this->filas, 'matricula'))
-            ->pluck('codigo', 'matricula');
-
-        $vistosEnLote = [];
-        $nuevos = [];
-        $actualizaCodigo = [];
+        // Cada fila del CSV se inserta como un registro de alumno nuevo, aunque
+        // el código ya exista (misma persona en otro ciclo): los ciclos viven en
+        // registros distintos y el listado se filtra por ciclo.
         foreach ($this->filas as $fila) {
             try {
-                $matricula = $fila['matricula'];
-                $codigo = $fila['codigo'] ?? null;
-
-                // Ya existe en BD: en lugar de descartarlo, unificar códigos si difieren
-                // (un alumno con doble carrera comparte matrícula pero tiene códigos distintos).
-                if ($existentes->has($matricula)) {
-                    $codigoExistente = $existentes->get($matricula);
-                    $unificado = $this->unificarCodigos($codigoExistente, $codigo);
-                    if ($unificado !== $codigoExistente) {
-                        $actualizaCodigo[$matricula] = $unificado;
-                    }
-                    $duplicadas++;
-                    $duplicadosDetalle[] = [
-                        'matricula' => $matricula,
-                        'nombre' => $fila['nombre_completo'] ?? '',
-                        'codigo' => $codigo,
-                    ];
-                    continue;
-                }
-                // Ya se agregó en este lote (misma matrícula repetida): unificar código
-                if (isset($vistosEnLote[$matricula])) {
-                    $actualizaCodigo[$matricula] = $this->unificarCodigos(
-                        $nuevos[$vistosEnLote[$matricula]]['codigo'],
-                        $codigo
-                    );
-                    $duplicadas++;
-                    $duplicadosDetalle[] = [
-                        'matricula' => $matricula,
-                        'nombre' => $fila['nombre_completo'] ?? '',
-                        'codigo' => $codigo,
-                    ];
-                    continue;
-                }
-                $vistosEnLote[$matricula] = count($nuevos);
-                $nuevos[] = [
-                    'matricula' => $matricula,
-                    'codigo' => $codigo,
+                $alumno = Alumno::create([
+                    'matricula' => $fila['matricula'] ?? null,
+                    'codigo' => $fila['codigo'],
                     'nombre_completo' => $fila['nombre_completo'],
                     'carrera' => $fila['carrera'] ?? null,
                     'ciclo_ingreso' => $fila['ciclo_ingreso'] ?? null,
                     'status' => $fila['status'] ?? null,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ];
-            } catch (\Throwable $e) {
-                $errores++;
-                $erroresDetalle[] = [
-                    'matricula' => $fila['matricula'] ?? '',
-                    'nombre' => $fila['nombre_completo'] ?? '',
-                    'motivo' => $e->getMessage(),
-                ];
-            }
-        }
-
-        // Aplicar la unificación de códigos sobre los registros nuevos del lote
-        foreach ($actualizaCodigo as $matricula => $codigoUnificado) {
-            if (isset($vistosEnLote[$matricula])) {
-                $nuevos[$vistosEnLote[$matricula]]['codigo'] = $codigoUnificado;
-            }
-        }
-
-        // Unificar códigos de alumnos que ya existían en BD (una matrícula puede
-        // tener dos códigos: licenciatura + maestría).
-        $cargarActualizados = array_filter($actualizaCodigo, fn ($m) => !isset($vistosEnLote[$m]), ARRAY_FILTER_USE_KEY);
-        foreach ($cargarActualizados as $matricula => $codigoUnificado) {
-            try {
-                Alumno::where('matricula', $matricula)->update(['codigo' => $codigoUnificado]);
-            } catch (\Throwable $e) {
-                $errores++;
-                $erroresDetalle[] = [
-                    'matricula' => $matricula,
-                    'nombre' => '',
-                    'motivo' => 'No se pudo unificar código: ' . $e->getMessage(),
-                ];
-            }
-        }
-
-        // Sin duplicados internos, el insert en bloque no debería colisionar.
-        // El reintento fila por fila queda solo como red de seguridad por si hay
-        // carreras concurrentes sobre los mismos códigos.
-        foreach (array_chunk($nuevos, 500) as $lote) {
-            try {
-                Alumno::insert($lote);
-                $insertadas += count($lote);
-            } catch (\Throwable $e) {
-                foreach ($lote as $fila) {
-                    try {
-                        unset($fila['created_at'], $fila['updated_at']);
-                        Alumno::create($fila);
-                        $insertadas++;
-                    } catch (\Throwable $e2) {
-                        $errores++;
-                        $erroresDetalle[] = [
-                            'matricula' => $fila['matricula'] ?? '',
-                            'nombre' => $fila['nombre_completo'] ?? '',
-                            'motivo' => $e2->getMessage(),
-                        ];
-                    }
+                ]);
+                $insertadas++;
+                $insertados[] = $alumno->id;
+                if (!isset($primeroPorCodigo[$alumno->codigo])) {
+                    $primeroPorCodigo[$alumno->codigo] = $alumno->id;
                 }
+            } catch (\Throwable $e) {
+                continue;
             }
         }
+
+        // Re-vincular documentos (y firmas) que quedaron huérfanos al eliminar
+        // al alumno: al volver a importar el mismo código, el folio del documento
+        // (código-idAlumno-secuencia) se relaciona de nuevo con el nuevo registro.
+        $this->religarDocumentosHuérfanos($primeroPorCodigo);
+
+        // Vincular SOLO los registros insertados en este lote a la importación
+        // (y por tanto a su ciclo): los registros de ciclos anteriores no se
+        // tocan, así cada ciclo tiene sus propios registros.
+        $this->vincularAlumnosAImportacion($insertados);
 
         $importacion->increment('insertadas', $insertadas);
-        $importacion->increment('duplicadas', $duplicadas);
-        $importacion->increment('errores', $errores);
         $importacion->increment('procesadas', count($this->filas));
 
-        $ultimos = collect($nuevos)->take(-40)->map(fn ($f) => [
+        $ultimos = collect($this->filas)->take(-40)->map(fn ($f) => [
             'codigo' => $f['codigo'],
             'nombre' => $f['nombre_completo'] ?? '',
         ])->values()->all();
 
         $importacion->forceFill([
             'ultimos_codigos' => $ultimos,
-            'duplicados_detalle' => array_merge($importacion->duplicados_detalle ?? [], $duplicadosDetalle),
-            'errores_detalle' => array_merge($importacion->errores_detalle ?? [], $erroresDetalle),
         ])->save();
+
+        // El último lote en terminar marca la importación como completada.
+        $completado = false;
+        DB::transaction(function () use ($importacion, &$completado) {
+            $fila = DB::table('importaciones')->where('id', $importacion->id)->lockForUpdate()->first();
+            $pendientes = ($fila->lotes_pendientes ?? 0) - 1;
+            if ($pendientes <= 0) {
+                DB::table('importaciones')->where('id', $importacion->id)->update([
+                    'lotes_pendientes' => 0,
+                    'estado' => 'completado',
+                    'updated_at' => now(),
+                ]);
+                $completado = true;
+            } else {
+                DB::table('importaciones')->where('id', $importacion->id)->update([
+                    'lotes_pendientes' => $pendientes,
+                    'updated_at' => now(),
+                ]);
+            }
+        });
+
+        // Solo el último lote invalida y regenera el caché del listado, para que
+        // el cache no se limpie entre medio mientras otros lotes siguen
+        // insertando, y para dejar caliente el listado para la primera carga.
+        if ($completado) {
+            $importacion->regenerarCacheListado();
+        }
     }
 
-    private function unificarCodigos(?string $existente, ?string $nuevo): ?string
+    /**
+     * Al volver a importar un código que antes fue eliminado, re-vincula los
+     * documentos (y sus firmas) que quedaron huérfanos (alumno_id NULL) al
+     * registro del alumno reimportado, usando el folio del documento
+     * (código-idAlumno-secuencia). El mapa es codigo => id del registro nuevo.
+     */
+    private function religarDocumentosHuérfanos(array $primeroPorCodigo): void
     {
-        $existente = trim((string)($existente ?? ''));
-        $nuevo = trim((string)($nuevo ?? ''));
-
-        if ($nuevo === '') {
-            return $existente !== '' ? $existente : null;
-        }
-        if ($existente === '') {
-            return $nuevo;
+        if (empty($primeroPorCodigo)) {
+            return;
         }
 
-        $partes = array_map('trim', preg_split('/\s*\/\s*|\s*;\s*/', $existente));
-        if (in_array(strtoupper($nuevo), array_map('strtoupper', $partes), true)) {
-            return $existente;
+        foreach ($primeroPorCodigo as $codigo => $alumnoId) {
+            $documentos = Documento::whereNull('alumno_id')
+                ->where('folio', 'like', $codigo . '-%')
+                ->get(['id']);
+
+            if ($documentos->isEmpty()) {
+                continue;
+            }
+
+            $docIds = $documentos->pluck('id')->all();
+
+            Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumnoId]);
+            Firma::whereIn('documento_id', $docIds)
+                ->whereNull('alumno_id')
+                ->update(['alumno_id' => $alumnoId]);
+        }
+    }
+
+    /**
+     * Relaciona los registros insertados en este lote con la importación/ciclo
+     * actual. Cada ciclo conserva sus propios registros de alumno.
+     */
+    private function vincularAlumnosAImportacion(array $insertados): void
+    {
+        if (empty($insertados)) {
+            return;
         }
 
-        return $existente . ' / ' . $nuevo;
+        $ahora = now();
+        $pivot = array_map(fn ($id) => [
+            'alumno_id' => $id,
+            'importacion_id' => $this->importacionId,
+            'created_at' => $ahora,
+            'updated_at' => $ahora,
+        ], $insertados);
+
+        DB::table('alumno_importacion')->insertOrIgnore($pivot);
     }
 }

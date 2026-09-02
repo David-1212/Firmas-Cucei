@@ -59,7 +59,14 @@
                                 <a href="{{ route('documentos.show', $doc) }}" class="block border border-gray-100 rounded-xl bg-gray-50/50 p-4 hover:bg-brand-50/50 hover:border-brand-200 transition">
                                     <div class="flex items-center justify-between">
                                         <div>
-                                            <div class="font-medium text-gray-800">{{ $doc->tipoDocumento->nombre }}</div>
+                                            <div class="font-medium text-gray-800">{{ $doc->tipoDocumento->nombre }}
+                                                @if($doc->alumno_id !== $alumno->id)
+                                                    @php($docCiclo = $doc->alumno?->ultimoCiclo())
+                                                    @if($docCiclo)
+                                                        <span class="badge bg-purple-100 text-purple-700 text-xs">{{ $docCiclo }}</span>
+                                                    @endif
+                                                @endif
+                                            </div>
                                             <div class="text-sm text-gray-500">Fecha: {{ $doc->fecha?->format('d/m/Y H:i:s') ?? '—' }}</div>
                                             @if($doc->folio)
                                                 <div class="text-sm text-gray-500">Folio: <span class="font-mono text-brand-700">{{ $doc->folio }}</span></div>

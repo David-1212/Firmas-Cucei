@@ -38,16 +38,15 @@ class ProcesarImportacionCsv implements ShouldQueue
 
         $importacion->update(['estado' => 'procesando']);
 
-        $lote = [];
         $chunkSize = (int)(config('import.csv_chunk_size', 2000));
         $total = 0;
         $initialized = false;
-        $nuevoJob = null;
         $linea = 0;
-        $erroresDetalle = [];
-        // Mapa matricula => registro. Un mismo alumno puede aparecer en varios
-        // registros (maestría y licenciatura) con códigos distintos: se unifican.
-        $porMatricula = [];
+        // Mapa codigo => registro. Un mismo alumno (mismo código / no. de control)
+        // puede aparecer en varios registros del archivo (licenciatura y maestría)
+        // con matrículas distintas: se unifican en una sola fila y el registro se
+        // inserta como nuevo para este ciclo.
+        $porCodigo = [];
 
         // Línea por línea para no cargar todo en memoria
         if (($fh = fopen($archivo, 'r')) !== false) {
@@ -67,59 +66,65 @@ class ProcesarImportacionCsv implements ShouldQueue
                     if ($mapeo === null) {
                         // Sin encabezados conocidos, asumir orden estándar
                         $mapeo = ['matricula', 'codigo', 'nombre_completo', 'carrera', 'ciclo_ingreso', 'status'];
+                        $sinEncabezados = true;
+                    } else {
+                        $sinEncabezados = false;
                     }
 
                     continue;
                 }
 
-                $registro = $this->construirRegistro($fila, $mapeo ?? ['matricula', 'codigo', 'nombre_completo', 'carrera', 'ciclo_ingreso', 'status']);
+                $registro = $this->construirRegistro($fila, $mapeo ?? ['matricula', 'codigo', 'nombre_completo', 'carrera', 'ciclo_ingreso', 'status'], $sinEncabezados ?? false);
                 if ($registro === null) {
-                    $importacion->increment('errores');
-                    $erroresDetalle[$linea] = [
-                        'matricula' => trim((string)($fila[0] ?? '')),
-                        'nombre' => trim((string)($fila[2] ?? '')),
-                        'motivo' => 'Fila inválida o incompleta',
-                    ];
                     continue;
                 }
 
-                $matricula = $registro['matricula'];
-                if (isset($porMatricula[$matricula])) {
-                    // Misma matrícula: unificar códigos de alumno (licenciatura + maestría).
-                    $existente = &$porMatricula[$matricula];
-                    $existente['codigo'] = $this->unificarCodigos($existente['codigo'], $registro['codigo']);
+                $codigo = $registro['codigo'];
+                if (isset($porCodigo[$codigo])) {
+                    // Mismo código: unificar el alumno (licenciatura + maestría)
+                    // combinando matrículas, carreras y ciclos de ingreso.
+                    $existente = &$porCodigo[$codigo];
+                    $existente['matricula'] = $this->unificarValores($existente['matricula'], $registro['matricula']);
+                    $existente['carrera'] = $this->unificarValores($existente['carrera'], $registro['carrera']);
+                    $existente['ciclo_ingreso'] = $this->unificarValores($existente['ciclo_ingreso'], $registro['ciclo_ingreso']);
                     // Completar campos vacíos con los del segundo registro.
-                    foreach (['nombre_completo', 'carrera', 'ciclo_ingreso', 'status'] as $campo) {
+                    foreach (['nombre_completo', 'status'] as $campo) {
                         if (($existente[$campo] === null || $existente[$campo] === '') && !empty($registro[$campo])) {
                             $existente[$campo] = $registro[$campo];
                         }
                     }
                     unset($existente);
                 } else {
-                    $porMatricula[$matricula] = $registro;
+                    $porCodigo[$codigo] = $registro;
                 }
                 $total++;
             }
             fclose($fh);
         }
 
-        // Despachar las matrículas ya unificadas en lotes (evita cargar todo el
-        // proceso en un solo job y garantiza la unificación de códigos completa).
-        if (count($porMatricula) > 0) {
-            foreach (array_chunk(array_values($porMatricula), $chunkSize) as $lote) {
+        // Despachar los códigos ya unificados en lotes (evita cargar todo el
+        // proceso en un solo job y garantiza la unificación de matrículas completa).
+        $lotes = array_chunk(array_values($porCodigo), $chunkSize);
+
+        if (count($lotes) === 0) {
+            // Sin registros válidos: no hay lotes que procesar, terminar ya.
+            $importacion->forceFill([
+                'total_filas' => $total,
+                'estado' => 'completado',
+            ])->save();
+            $importacion->regenerarCacheListado();
+        } else {
+            // Contar lotes pendientes: el último lote que termine marca la
+            // importación como "completado", para que el progreso en vivo no
+            // desaparezca antes de que terminen de procesarse los alumnos.
+            $importacion->forceFill([
+                'total_filas' => $total,
+                'lotes_pendientes' => count($lotes),
+            ])->save();
+
+            foreach ($lotes as $lote) {
                 ProcesarLoteAlumnos::dispatch($lote, $importacion->id);
             }
-        }
-
-        $importacion->update([
-            'total_filas' => $total,
-            'estado' => 'completado',
-        ]);
-
-        if ($erroresDetalle) {
-            $importacion->forceFill([
-                'errores_detalle' => array_merge($importacion->errores_detalle ?? [], array_values($erroresDetalle)),
-            ])->save();
         }
 
         // Limpiar archivo temporal
@@ -160,7 +165,7 @@ class ProcesarImportacionCsv implements ShouldQueue
         return $mapeo;
     }
 
-    private function construirRegistro(array $fila, array $mapeo): ?array
+    private function construirRegistro(array $fila, array $mapeo, bool $sinEncabezados = false): ?array
     {
         $registro = [
             'matricula' => null,
@@ -184,7 +189,7 @@ class ProcesarImportacionCsv implements ShouldQueue
 
         // Validación mínima: si no se pudieron detectar los encabezados,
         // usar posición fija [matricula, codigo, nombre_completo, carrera, ciclo_ingreso, status]
-        if ($registro['matricula'] === null && isset($fila[0])) {
+        if ($sinEncabezados && $registro['matricula'] === null && isset($fila[0])) {
             $registro['matricula'] = trim((string)($fila[0] ?? ''));
             $registro['codigo'] = trim((string)($fila[1] ?? ''));
             $registro['nombre_completo'] = trim((string)($fila[2] ?? ''));
@@ -193,14 +198,14 @@ class ProcesarImportacionCsv implements ShouldQueue
             $registro['status'] = trim((string)($fila[5] ?? ''));
         }
 
-        if ($registro['matricula'] === null || $registro['matricula'] === '' || $registro['nombre_completo'] === '') {
+        if ($registro['codigo'] === null || $registro['codigo'] === '' || $registro['nombre_completo'] === '') {
             return null;
         }
 
         return $registro;
     }
 
-    private function unificarCodigos(?string $existente, ?string $nuevo): ?string
+    private function unificarValores(?string $existente, ?string $nuevo): ?string
     {
         $existente = trim((string)($existente ?? ''));
         $nuevo = trim((string)($nuevo ?? ''));
@@ -212,7 +217,7 @@ class ProcesarImportacionCsv implements ShouldQueue
             return $nuevo;
         }
 
-        // Evitar duplicar un código que ya está presente
+        // Evitar duplicar una matrícula que ya está presente
         $partes = array_map('trim', preg_split('/\s*\/\s*|\s*;\s*/', $existente));
         if (in_array(strtoupper($nuevo), array_map('strtoupper', $partes), true)) {
             return $existente;

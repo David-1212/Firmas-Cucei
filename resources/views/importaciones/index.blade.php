@@ -22,10 +22,20 @@
                             <div id="estadoSubida" class="hidden mt-2 rounded-xl bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800"></div>
                         </div>
 
+                        <div>
+                            <x-input-label for="ciclo" value="Ciclo / semestre (obligatorio)" />
+                            <input type="text" name="ciclo" id="ciclo" required maxlength="20"
+                                   placeholder="Ej. 2026-A, 2026-B… el ciclo al que pertenece este listado"
+                                   value="{{ old('ciclo') }}"
+                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm">
+                            <x-input-error :messages="$errors->get('ciclo')" class="mt-2" />
+                            <p class="mt-1 text-xs text-gray-500">Cada importación corresponde a un ciclo/semestre. El listado de trabajo se podrá filtrar por este ciclo.</p>
+                        </div>
+
                         <div class="rounded-xl bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
                             <strong>Formato esperado de columnas:</strong>
                             <code class="block mt-1 bg-white/60 border border-blue-100 rounded px-2 py-1">matricula, codigo de alumno, nombre completo, carrera, ciclo de ingreso, status</code>
-                            <p class="mt-2">Se detectan encabezados por nombre (matricula, código, nombre completo, etc.). Si no hay encabezados, se asume el orden anterior. La deduplicación se hace por <strong>matrícula</strong>. El procesamiento ocurre en <strong>segundo plano</strong> por lotes, por lo que no congela el navegador aunque el archivo tenga más de 130,000 registros.</p>
+                            <p class="mt-2">Se detectan encabezados por nombre (matricula, código, nombre completo, etc.). Si no hay encabezados, se asume el orden anterior. Debes capturar el <strong>ciclo (semestre)</strong> de este listado obligatoriamente. Si hay alumnos que ya aparecieron antes, se vinculan a este ciclo sin duplicarse. El procesamiento ocurre en <strong>segundo plano</strong> por lotes, por lo que no congela el navegador aunque el archivo tenga más de 130,000 registros.</p>
                         </div>
 
                         <div>
@@ -85,27 +95,6 @@
     <script>
         // Consulta el progreso de las importaciones en curso y actualiza los cuadritos en vivo.
         let despuesDeSubir = false;
-
-        // Lista detallada (duplicados/errores) con scroll y límite de filas visibles.
-        function listaDetalle(arr, total, clase, titulo) {
-            if (!arr || !arr.length) return '';
-            const visibles = arr.slice(0, 50);
-            const filas = visibles.map(function (a) {
-                const mat = a.matricula || a.codigo || '—';
-                const nom = a.nombre || '';
-                const motivo = a.motivo ? ' <span class="text-red-400">·</span> ' + a.motivo : '';
-                return '<div class="px-3 py-1 text-xs font-mono flex items-baseline gap-2"><span class="shrink-0 font-semibold text-gray-700">' + mat + '</span><span class="truncate text-gray-500">' + nom + motivo + '</span></div>';
-            }).join('');
-            const extra = (total && total > arr.length) ? '<div class="px-3 py-2 text-xs text-gray-400">… y ' + (total - arr.length) + ' más</div>' : '';
-            return '<div class="mt-3">'
-                + '<details class="group">'
-                + '<summary class="cursor-pointer text-xs font-medium text-gray-600 flex items-center gap-1 select-none">'
-                + '<span class="' + clase + ' px-1.5 py-0.5 rounded-full">' + (total || arr.length) + '</span> ' + titulo
-                + '</summary>'
-                + '<div class="mt-2 max-h-40 overflow-y-auto border rounded-lg divide-y divide-gray-100 bg-white">'
-                + filas + extra
-                + '</div></details></div>';
-        }
 
         async function consultarProgreso() {
             let res, datos;
@@ -171,15 +160,12 @@
                 const ins = fila.querySelector('.ins');
                 if (ins) {
                     ins.innerHTML = ''
-                        + '<span class="badge bg-green-100 text-green-700">' + Number(imp.insertadas).toLocaleString() + ' nuevos</span>'
-                        + '<span class="badge bg-blue-100 text-blue-700">' + Number(imp.duplicadas).toLocaleString() + ' ya existían</span>'
-                        + '<span class="badge bg-red-100 text-red-700">' + Number(imp.errores).toLocaleString() + ' con error</span>';
+                        + '<span class="badge bg-green-100 text-green-700">' + Number(imp.insertadas).toLocaleString() + ' alumnos</span>';
                 }
 
                 const detalle = document.getElementById('detalle_' + imp.id);
                 if (detalle) {
-                    detalle.innerHTML = listaDetalle(imp.duplicados_detalle, imp.duplicadas, 'bg-blue-100 text-blue-700', 'duplicados')
-                        + listaDetalle(imp.errores_detalle, imp.errores, 'bg-red-100 text-red-700', 'con error');
+                    detalle.innerHTML = '';
                 }
             });
         }

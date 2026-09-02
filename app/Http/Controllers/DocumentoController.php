@@ -53,8 +53,11 @@ class DocumentoController extends Controller
             // del mismo alumno y evitar folios duplicados en concurrencia.
             $alumno = Alumno::whereKey($data['alumno_id'])->lockForUpdate()->firstOrFail();
 
-            $secuencia = Documento::where('alumno_id', $alumno->id)->count() + 1;
-            $folio = $alumno->codigo . '-' . $secuencia;
+            // Al crear el primer documento de un alumno re-importado, re-vincular
+            // sus documentos huérfanos del mismo código para que vuelvan a su historial.
+            $this->religarDocumentosHuérfanosDe($alumno);
+
+            $folio = $this->siguienteFolioPara($alumno);
 
             $documento = Documento::create([
                 'alumno_id' => $alumno->id,
@@ -78,8 +81,33 @@ class DocumentoController extends Controller
 
     public function show(Documento $documento)
     {
-        $documento->load(['alumno', 'tipoDocumento', 'firma.usuario', 'usuario']);
-        return view('documentos.show', compact('documento'));
+        $documento->load(['alumno.importaciones', 'tipoDocumento', 'firma.usuario', 'usuario']);
+
+        $ciclo = $documento->alumno
+            ? ($documento->alumno->importaciones()
+                ->whereNotNull('ciclo')
+                ->where('ciclo', '!=', '')
+                ->latest('id')
+                ->value('ciclo') ?? '—')
+            : '—';
+
+        // Alumno "visible": si el documento pertenece a otro ciclo pero existe un
+        // registro del último ciclo con el mismo código, se muestra como de ese
+        // alumno (sin alterar el vínculo real alumno_id del documento).
+        $alumnoVisible = $documento->alumno;
+        if ($alumnoVisible) {
+            $alumnoActual = \App\Models\Alumno::where('codigo', $alumnoVisible->codigo)
+                ->whereHas('importaciones', function ($qi) use ($ciclo) {
+                    $qi->where('importaciones.ciclo', $ciclo);
+                })
+                ->latest('id')
+                ->first();
+            if ($alumnoActual) {
+                $alumnoVisible = $alumnoActual;
+            }
+        }
+
+        return view('documentos.show', compact('documento', 'ciclo', 'alumnoVisible'));
     }
 
     public function firmar(Documento $documento)
@@ -100,6 +128,7 @@ class DocumentoController extends Controller
     public function storeFirma(Request $request, Documento $documento)
     {
         $this->authorizeFirmar($documento);
+        $documento->load(['alumno']);
 
         $data = $request->validate([
             'firma_data' => 'required|string',
@@ -126,16 +155,27 @@ class DocumentoController extends Controller
             return back()->withErrors(['firma_data' => 'La imagen de la firma es demasiado grande.']);
         }
 
-        $nombre = 'firmas/' . $documento->alumno_id . '_' . $documento->id . '_' . time() . '.png';
-        \Storage::disk('public')->put($nombre, $imagen);
+        // Guardar en una ruta determinística por código de alumno y id de documento
+        // para que la firma sobreviva a borrados / re-importaciones del listado.
+        $codigo = $documento->alumno?->codigo ?: (string) $documento->alumno_id;
+        $carpeta = 'firmas/' . $codigo;
+        $nombre = $carpeta . '/' . $documento->id . '.png';
 
-        $firma = Firma::create([
-            'alumno_id' => $documento->alumno_id,
-            'documento_id' => $documento->id,
-            'ruta_imagen' => $nombre,
-            'formato' => 'png',
-            'user_id' => auth()->id(),
-        ]);
+        // Si ya existe una firma para este documento, reutilizarla.
+        if (!\Storage::disk('public')->exists($nombre)) {
+            \Storage::disk('public')->put($nombre, $imagen);
+        }
+
+        $firma = Firma::where('documento_id', $documento->id)->latest()->first();
+        if (!$firma) {
+            $firma = Firma::create([
+                'alumno_id' => $documento->alumno_id,
+                'documento_id' => $documento->id,
+                'ruta_imagen' => $nombre,
+                'formato' => 'png',
+                'user_id' => auth()->id(),
+            ]);
+        }
 
         $documento->update(['estado' => 'firmado']);
 
@@ -187,9 +227,57 @@ class DocumentoController extends Controller
             return response()->json(['folio' => null], 404);
         }
 
-        $secuencia = Documento::where('alumno_id', $alumno->id)->count() + 1;
+        return response()->json(['folio' => $this->siguienteFolioPara($alumno)]);
+    }
 
-        return response()->json(['folio' => $alumno->codigo . '-' . $secuencia]);
+    /**
+     * Re-vincula al alumno los documentos huérfanos del mismo código
+     * (y sus firmas), que quedaron con alumno_id NULL tras eliminar y
+     * volver a importar al alumno.
+     */
+    private function religarDocumentosHuérfanosDe(Alumno $alumno): void
+    {
+        $documentos = Documento::whereNull('alumno_id')
+            ->where('folio', 'like', $alumno->codigo . '-%')
+            ->get(['id']);
+
+        if ($documentos->isEmpty()) {
+            return;
+        }
+
+        $docIds = $documentos->pluck('id')->all();
+
+        Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumno->id]);
+        Firma::whereIn('documento_id', $docIds)
+            ->whereNull('alumno_id')
+            ->update(['alumno_id' => $alumno->id]);
+    }
+
+    /**
+     * Calcula el siguiente folio del alumno sin chocar con el índice único.
+     * Considera tanto sus documentos actuales como los huérfanos del mismo
+     * código (alumnos eliminados con documentos que luego se re-importaron),
+     * y encuentra el máximo número de secuencia existente + 1 (no el conteo).
+     *
+     * El folio incluye el id del alumno (código-idAlumno-secuencia) para que
+     * el mismo código repetido en distintos ciclos no colisione.
+     */
+    private function siguienteFolioPara(Alumno $alumno): string
+    {
+        $libres = Documento::where('alumno_id', $alumno->id)
+            ->orWhere(fn ($q) => $q->whereNull('alumno_id')->where('folio', 'like', $alumno->codigo . '-%'))
+            ->pluck('folio');
+
+        $max = 0;
+        foreach ($libres as $folio) {
+            $partes = explode('-', $folio);
+            $n = (int) end($partes);
+            if ($n > $max) {
+                $max = $n;
+            }
+        }
+
+        return $alumno->codigo . '-' . $alumno->id . '-' . ($max + 1);
     }
 
     private function authorizeFirmar(Documento $documento): void

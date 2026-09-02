@@ -45,6 +45,7 @@
                             <table class="min-w-full divide-y divide-gray-200">
                                 <thead class="bg-gray-50">
                                     <tr>
+                                        <th class="th">Firma</th>
                                         <th class="th">Alumno</th>
                                         <th class="th">Tipo</th>
                                         <th class="th">Folio</th>
@@ -57,8 +58,18 @@
                                     @forelse($documentos as $doc)
                                         <tr class="hover:bg-brand-50/40 transition">
                                             <td class="px-6 py-4">
-                                                <div class="text-sm font-medium text-gray-800">{{ $doc->alumno->nombre_completo }}</div>
-                                                <div class="text-xs text-gray-500 font-mono">{{ $doc->alumno->codigo }}</div>
+                                                @if($doc->firma)
+                                                    <a href="{{ route('documentos.show', $doc) }}" title="Ver firma del documento {{ $doc->folio }}" class="block">
+                                                        <img src="{{ asset('storage/' . $doc->firma->ruta_imagen) }}" alt="Firma del documento {{ $doc->folio }}"
+                                                             class="h-14 w-28 object-contain object-center rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow transition">
+                                                    </a>
+                                                @else
+                                                    <span class="text-gray-300">Sin firma</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm font-medium text-gray-800">{{ $doc->alumno?->nombre_completo ?? 'Alumno eliminado' }}</div>
+                                                <div class="text-xs text-gray-500 font-mono">{{ $doc->alumno?->codigo ?? '—' }}</div>
                                             </td>
                                             <td class="px-6 py-4 text-sm text-gray-700">{{ $doc->tipoDocumento->nombre }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500 font-mono">{{ $doc->folio ?? '—' }}</td>
@@ -81,7 +92,7 @@
                                         </tr>
                                     @empty
                                         <tr>
-                                            <td colspan="6" class="px-6 py-10 text-center text-sm text-gray-500">No se encontraron documentos.</td>
+                                            <td colspan="7" class="px-6 py-10 text-center text-sm text-gray-500">No se encontraron documentos.</td>
                                         </tr>
                                     @endforelse
                                 </tbody>

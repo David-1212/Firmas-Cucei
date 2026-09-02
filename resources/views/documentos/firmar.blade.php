@@ -45,7 +45,7 @@
                         </span>
 
                         (<span class="font-mono text-brand-700">
-                            {{ $documento->alumno->codigo }}
+                            {{ $documento->alumno?->codigo ?? '—' }}
                         </span>)
 
                         · Folio:
@@ -222,7 +222,7 @@
 
                                 <span class="font-medium text-gray-800">
 
-                                    {{ $documento->alumno->nombre_completo }}
+{{ $documento->alumno?->nombre_completo ?? 'Alumno eliminado' }}
 
                                 </span>.
 
@@ -351,6 +351,10 @@
 
 
             let stuConectada =
+                false;
+
+
+            let stuConectando =
                 false;
 
 
@@ -1753,6 +1757,92 @@
 
 
             /* =========================================================
+             * ABRIR WACOM
+            ========================================================== */
+
+            async function abrirWacom(dispositivo) {
+
+                if (
+                    stuConectando ||
+                    stuConectada
+                ) {
+
+                    return;
+
+                }
+
+
+                stuConectando =
+                    true;
+
+
+                try {
+
+                    stuDevice =
+                        dispositivo;
+
+                    if (
+                        !stuDevice.opened
+                    ) {
+
+                        await stuDevice.open();
+
+                    }
+
+
+                    stuDevice.addEventListener(
+                        'inputreport',
+                        onStuInputReport
+                    );
+
+
+                    stuConectada =
+                        true;
+
+
+                    btnConectar.textContent =
+                        'Desconectar Wacom';
+
+
+                    setStuStatus(
+                        'conectada — configurando...',
+                        true
+                    );
+
+
+                    await configurarWacom();
+
+
+                    setStuStatus(
+                        'lista — firma en la Wacom',
+                        true
+                    );
+
+
+                    if (
+                        timerConexionWacom
+                    ) {
+
+                        clearInterval(
+                            timerConexionWacom
+                        );
+
+                        timerConexionWacom =
+                            null;
+
+                    }
+
+                } finally {
+
+                    stuConectando =
+                        false;
+
+                }
+
+            }
+
+
+            /* =========================================================
              * CONECTAR WACOM
             ========================================================== */
 
@@ -1846,57 +1936,8 @@
                     }
 
 
-                    stuDevice =
-                        dispositivo;
-
-
-                    /*
-                     * Abrir dispositivo.
-                     */
-
-                    if (
-                        !stuDevice.opened
-                    ) {
-
-                        await stuDevice.open();
-
-                    }
-
-
-                    /*
-                     * Listener.
-                     */
-
-                    stuDevice.addEventListener(
-                        'inputreport',
-                        onStuInputReport
-                    );
-
-
-                    stuConectada =
-                        true;
-
-
-                    btnConectar.textContent =
-                        'Desconectar Wacom';
-
-
-                    setStuStatus(
-                        'conectada — configurando...',
-                        true
-                    );
-
-
-                    /*
-                     * Configurar.
-                     */
-
-                    await configurarWacom();
-
-
-                    setStuStatus(
-                        'lista — firma en la Wacom',
-                        true
+                    await abrirWacom(
+                        dispositivo
                     );
 
 
@@ -2122,12 +2163,125 @@
 
 
             /* =========================================================
+             * CONEXIÓN AUTOMÁTICA WACOM
+            ========================================================== */
+
+            let timerConexionWacom =
+                null;
+
+
+            async function intentarConexionAutomatica() {
+
+                if (
+                    stuConectada
+                ) {
+
+                    return;
+
+                }
+
+
+                if (
+                    !('hid' in navigator)
+                ) {
+
+                    return;
+
+                }
+
+
+                try {
+
+                    const autorizados =
+                        await navigator.hid.getDevices();
+
+                    const dispositivo =
+                        autorizados.find(
+                            device =>
+                                device.vendorId ===
+                                WACOM_VENDOR_ID
+                                &&
+                                device.productId ===
+                                WACOM_PRODUCT_ID
+                        );
+
+
+                    if (
+                        !dispositivo
+                    ) {
+
+                        /*
+                         * Sin dispositivo autorizado todavía.
+                         * El permiso de WebHID requiere un
+                         * gesto del usuario (botón Conectar),
+                         * que solo hace falta la primera vez.
+                         */
+
+                        return;
+
+                    }
+
+
+                    await abrirWacom(
+                        dispositivo
+                    );
+
+                } catch (error) {
+
+                    console.warn(
+                        'Reintentando conexión Wacom:',
+                        error
+                    );
+
+                }
+
+            }
+
+
+            if (
+                'hid' in navigator
+            ) {
+
+                navigator.hid.addEventListener(
+                    'connect',
+                    event => {
+
+                        const dispositivo =
+                            event.device;
+
+                        if (
+                            dispositivo &&
+                            dispositivo.vendorId ===
+                            WACOM_VENDOR_ID &&
+                            dispositivo.productId ===
+                            WACOM_PRODUCT_ID
+                        ) {
+
+                            abrirWacom(
+                                dispositivo
+                            ).catch(
+                                error =>
+                                    console.warn(
+                                        'No se pudo conectar Wacom:',
+                                        error
+                                    )
+                            );
+
+                        }
+
+                    }
+                );
+
+            }
+
+
+            /* =========================================================
              * FORMULARIO
             ========================================================== */
 
             form.addEventListener(
                 'submit',
-                e => {
+                async e => {
 
                     if (
                         !haDibujado
@@ -2147,6 +2301,15 @@
 
 
                     /*
+                     * Tomamos control del envío para poder
+                     * limpiar la pantalla de la Wacom antes
+                     * de navegar a otra página.
+                     */
+
+                    e.preventDefault();
+
+
+                    /*
                      * SOLO AQUÍ generamos PNG.
                      *
                      * Nunca durante el dibujo.
@@ -2157,6 +2320,31 @@
                             'image/png'
                         );
 
+
+                    if (
+                        stuConectada &&
+                        stuDevice &&
+                        stuDevice.opened
+                    ) {
+
+                        try {
+
+                            await stuClearScreen();
+
+                        } catch (error) {
+
+                            console.warn(
+                                'No se pudo limpiar la Wacom:',
+                                error
+                            );
+
+                        }
+
+                    }
+
+
+                    form.submit();
+
                 }
             );
 
@@ -2166,6 +2354,22 @@
             ========================================================== */
 
             dibujarFondo();
+
+
+            /*
+             * Conectar automáticamente la Wacom si ya está
+             * autorizada, e ir reintentando cada 4 segundos
+             * mientras la página esté abierta.
+             */
+
+            intentarConexionAutomatica();
+
+
+            timerConexionWacom =
+                setInterval(
+                    intentarConexionAutomatica,
+                    4000
+                );
 
 
         })();

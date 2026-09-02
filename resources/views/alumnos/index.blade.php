@@ -15,13 +15,43 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="card overflow-hidden">
                 <div class="p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="text-sm text-gray-600">
+                            @if($cicloUltimo !== '')
+                                <span class="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 border border-purple-200 px-3 py-1.5 text-sm font-medium text-purple-800">
+                                    <svg class="h-4 w-4 text-purple-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"/></svg>
+                                    Ciclo actual: <span class="badge bg-purple-100 text-purple-700 ml-1">{{ $cicloUltimo }}</span>
+                                </span>
+                            @else
+                                <span class="text-gray-400">Aún no hay importaciones con ciclo asignado.</span>
+                            @endif
+                        </div>
+                    </div>
                     <!-- Búsqueda en vivo -->
-                    <div class="relative mb-4">
-                        <span class="absolute inset-y-0 left-3 flex items-center text-gray-400"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg></span>
-                        <input type="text" id="buscador"
-                               value="{{ $busqueda }}"
-                               placeholder="Buscar por código, nombre, apellido, carrera o correo..."
-                               class="w-full pl-10 rounded-lg border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm">
+                    <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="md:col-span-1 relative">
+                            <span class="absolute inset-y-0 left-3 flex items-center text-gray-400"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg></span>
+                            <input type="text" id="buscador"
+                                   value="{{ $busqueda }}"
+                                   placeholder="Buscar por código, nombre, apellido, carrera o correo..."
+                                   class="w-full pl-10 rounded-lg border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <select id="filtroCarrera" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm">
+                                <option value="">Todas las carreras</option>
+                                @foreach($carreras as $carrera)
+                                    <option value="{{ $carrera }}" {{ $filtroCarrera === $carrera ? 'selected' : '' }}>{{ $carrera }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <select id="filtroStatus" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 text-sm">
+                                <option value="">Todos los status</option>
+                                @foreach($statuses as $status)
+                                    <option value="{{ $status }}" {{ $filtroStatus === $status ? 'selected' : '' }}>{{ $status }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                     </div>
 
                     <div id="resultados">
@@ -41,7 +71,23 @@
                                 <tbody class="bg-white divide-y divide-gray-100">
                                     @forelse($alumnos as $alumno)
                                         <tr class="hover:bg-brand-50/40 transition">
-                                            <td class="px-6 py-4 text-sm font-mono text-gray-700">{{ $alumno->matricula ?? '—' }}</td>
+                                            <td class="px-6 py-4 text-sm font-mono text-gray-700">
+                                                @php
+                                                    $matriculas = collect(explode('/', (string) $alumno->matricula))
+                                                        ->map(fn ($m) => trim($m))
+                                                        ->filter(fn ($m) => $m !== '')
+                                                        ->values();
+                                                @endphp
+                                                @if($matriculas->isEmpty())
+                                                    <span class="text-gray-400">—</span>
+                                                @else
+                                                    <span class="inline-flex flex-wrap gap-1">
+                                                        @foreach($matriculas as $matricula)
+                                                            <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-700">{{ $matricula }}</span>
+                                                        @endforeach
+                                                    </span>
+                                                @endif
+                                            </td>
                                             <td class="px-6 py-4 text-sm font-mono text-brand-700">{{ $alumno->codigo }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-800 font-medium">{{ $alumno->nombre_completo }}</td>
                                             <td class="px-6 py-4 text-sm text-gray-500">{{ $alumno->carrera ?? '—' }}</td>
@@ -86,32 +132,42 @@
     <script>
         (function () {
             const input = document.getElementById('buscador');
+            const carrera = document.getElementById('filtroCarrera');
+            const status = document.getElementById('filtroStatus');
             const resultados = document.getElementById('resultados');
             let timer = null;
 
-            async function buscar(termino, url = null) {
-                const target = url || window.location.pathname + '?q=' + encodeURIComponent(termino);
-                const res = await fetch(target, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            function construirUrl(url) {
+                const idx = url ? url.indexOf('?') : -1;
+                const base = (idx >= 0 ? url.slice(0, idx) : (url || window.location.pathname));
+                const params = new URLSearchParams(idx >= 0 ? url.slice(idx + 1) : window.location.search);
+                params.set('q', input.value);
+                if (carrera.value) params.set('carrera', carrera.value); else params.delete('carrera');
+                if (status.value) params.set('status', status.value); else params.delete('status');
+                return base + '?' + params.toString();
+            }
+
+            async function buscar(url = null) {
+                const res = await fetch(construirUrl(url), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 const html = await res.text();
-                // Extraer el bloque de resultados
                 const doc = new DOMParser().parseFromString(html, 'text/html');
                 const nuevo = doc.getElementById('resultados');
                 if (nuevo) resultados.innerHTML = nuevo.innerHTML;
+                window.history.pushState({}, '', construirUrl(url));
             }
 
             input.addEventListener('input', function () {
                 clearTimeout(timer);
-                const termino = this.value;
-                timer = setTimeout(() => buscar(termino), 300);
+                timer = setTimeout(() => buscar(), 300);
             });
 
-            // Paginación
+            carrera.addEventListener('change', () => buscar());
+            status.addEventListener('change', () => buscar());
+
             document.addEventListener('click', function (e) {
                 if (e.target.closest('.pagination a')) {
                     e.preventDefault();
-                    const url = e.target.closest('a').getAttribute('href');
-                    buscar(input.value, url);
-                    window.history.pushState({}, '', url);
+                    buscar(e.target.closest('a').getAttribute('href'));
                 }
             });
         })();

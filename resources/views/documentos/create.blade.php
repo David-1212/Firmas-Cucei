@@ -29,7 +29,7 @@
                             </div>
                             <div id="folio_preview" class="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 {{ $alumno ? '' : 'hidden' }}">
                                 <span class="text-gray-500">Folio que se asignará:</span>
-                                <span class="font-mono font-semibold" id="folio_valor">{{ $alumno ? $alumno->codigo . '-1' : '' }}</span>
+                                <span class="font-mono font-semibold" id="folio_valor">{{ $alumno ? $alumno->codigo . '-' . $alumno->id . '-1' : '' }}</span>
                             </div>
                             <div id="sin_resultados" class="mt-1 text-xs text-red-600 hidden">No se encontró ningún alumno. Verifica el código o nombre.</div>
                             <x-input-error :messages="$errors->get('alumno_id')" class="mt-2" />
@@ -54,7 +54,7 @@
                         </div>
 
                         <div class="rounded-md bg-gray-50 border border-gray-200 p-4 text-sm text-gray-600 space-y-1">
-                            <div>El <strong>folio</strong> se asignará automáticamente con el código del alumno + un número secuencial (siempre único), ej. <span class="font-mono">222333444-1</span>.</div>
+                            <div>El <strong>folio</strong> se asignará automáticamente con el código del alumno + su id + un número secuencial (siempre único), ej. <span class="font-mono">222333444-15-1</span>.</div>
                             <div>La <strong>fecha y hora</strong> se registrarán automáticamente al guardar.</div>
                         </div>
 

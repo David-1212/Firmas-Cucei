@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcesarImportacionCsv;
 use App\Models\Alumno;
-use App\Models\Firma;
 use App\Models\Importacion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -43,14 +42,9 @@ class ImportController extends Controller
             return back()->withErrors(['captcha' => 'El resultado del captcha es incorrecto. No se eliminó nada.']);
         }
 
-        // Eliminar las imágenes de firmas del storage público
-        $firmas = Firma::whereNotNull('ruta_imagen')->pluck('ruta_imagen');
-        foreach ($firmas as $ruta) {
-            if (\Storage::disk('public')->exists($ruta)) {
-                \Storage::disk('public')->delete($ruta);
-            }
-        }
-
+        // Las imágenes de firmas se conservan en el storage público (guardadas en
+        // 'firmas/{codigo}/{documento_id}.png') para que no se pierdan al borrar
+        // el listado; se reutilizan si el mismo documento vuelve a firmarse.
         $total = Alumno::count();
         Alumno::query()->delete(); // cascada a documentos y firmas (constrained cascadeOnDelete)
 
@@ -65,10 +59,12 @@ class ImportController extends Controller
     {
         $data = $request->validate([
             'archivo' => 'required|file|mimes:csv,txt|max:40960',
+            'ciclo' => 'required|string|max:20',
         ], [
             'archivo.required' => 'Selecciona un archivo CSV.',
             'archivo.mimes' => 'El archivo debe ser CSV.',
             'archivo.max' => 'El archivo no puede ser mayor a 40 MB.',
+            'ciclo.required' => 'El ciclo (semestre) es obligatorio.',
         ]);
 
         // Guardar en storage privado
@@ -80,6 +76,7 @@ class ImportController extends Controller
             'user_id' => auth()->id(),
             'archivo' => $nombre,
             'nombre_original' => $archivo->getClientOriginalName(),
+            'ciclo' => $data['ciclo'],
             'estado' => 'pendiente',
         ]);
 
@@ -90,7 +87,7 @@ class ImportController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'ok' => true,
-                'importacion' => $importacion->fresh()->only(['id', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas', 'duplicadas', 'errores']),
+                'importacion' => $importacion->fresh()->only(['id', 'ciclo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas']),
             ]);
         }
 
@@ -115,7 +112,7 @@ class ImportController extends Controller
     {
         $activas = Importacion::whereIn('estado', ['pendiente', 'procesando'])
             ->latest()
-            ->get(['id', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas', 'duplicadas', 'errores', 'ultimos_codigos', 'duplicados_detalle', 'errores_detalle', 'created_at', 'updated_at']);
+            ->get(['id', 'ciclo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas', 'ultimos_codigos', 'created_at', 'updated_at']);
 
         return response()->json($activas);
     }

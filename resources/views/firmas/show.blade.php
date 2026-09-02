@@ -2,7 +2,7 @@
     <x-slot name="header">
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">Firma #{{ $firma->id }}</h2>
-            <a href="{{ route('alumnos.firmas', $firma->alumno) }}" class="btn-secondary">← Todas las firmas de {{ $firma->alumno->nombre_completo }}</a>
+            <a href="{{ $firma->alumno ? route('alumnos.firmas', $firma->alumno) : '#' }}" class="btn-secondary">← Todas las firmas de {{ $firma->alumno?->nombre_completo ?? 'alumno eliminado' }}</a>
         </div>
     </x-slot>
 
@@ -17,8 +17,8 @@
                         <img src="{{ asset('storage/' . $firma->ruta_imagen) }}" class="border border-gray-200 rounded-lg bg-white max-w-full shadow-sm" alt="Firma">
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                        <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Alumno:</span> <span class="font-medium">{{ $firma->alumno->nombre_completo }}</span></div>
-                        <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Código:</span> <span class="font-mono text-brand-700">{{ $firma->alumno->codigo }}</span></div>
+                        <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Alumno:</span> <span class="font-medium">{{ $firma->alumno?->nombre_completo ?? 'Alumno eliminado' }}</span></div>
+                        <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Código:</span> <span class="font-mono text-brand-700">{{ $firma->alumno?->codigo ?? '—' }}</span></div>
                         <div class="rounded-lg bg-gray-50 px-3 py-2"><span class="text-gray-500">Documento:</span>
                             <a href="{{ route('documentos.show', $firma->documento) }}" class="text-brand-600 hover:underline font-medium">{{ $firma->documento?->tipoDocumento?->nombre }}</a>
                         </div>
