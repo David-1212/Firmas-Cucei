@@ -85,10 +85,10 @@ class DocumentoController extends Controller
 
         $ciclo = $documento->alumno
             ? ($documento->alumno->importaciones()
-                ->whereNotNull('ciclo')
-                ->where('ciclo', '!=', '')
-                ->latest('id')
-                ->value('ciclo') ?? '—')
+                ->whereNotNull('importaciones.ciclo')
+                ->where('importaciones.ciclo', '!=', '')
+                ->latest('importaciones.id')
+                ->value('importaciones.ciclo') ?? '—')
             : '—';
 
         // Alumno "visible": si el documento pertenece a otro ciclo pero existe un
