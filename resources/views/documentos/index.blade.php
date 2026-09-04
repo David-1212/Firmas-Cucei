@@ -118,8 +118,9 @@
             let timer = null;
 
             function construirUrl(url) {
-                const base = url || window.location.pathname;
-                const params = new URLSearchParams(window.location.search);
+                const idx = url ? url.indexOf('?') : -1;
+                const base = (idx >= 0 ? url.slice(0, idx) : (url || window.location.pathname));
+                const params = new URLSearchParams(idx >= 0 ? url.slice(idx + 1) : window.location.search);
                 params.set('q', input.value);
                 if (tipo.value) params.set('tipo', tipo.value); else params.delete('tipo');
                 if (estado.value) params.set('estado', estado.value); else params.delete('estado');

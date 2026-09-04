@@ -65,7 +65,7 @@ class UsuarioController extends Controller
             'name' => 'required|string|max:255',
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($usuario->id)],
             'password' => 'nullable|string|min:8|confirmed',
-            'role' => 'required|in:admin,ventanilla',
+            'role' => $esMismo ? 'nullable|in:admin,ventanilla' : 'required|in:admin,ventanilla',
             'activo' => 'nullable|boolean',
         ], [
             'password.min' => 'La contraseña debe tener al menos 8 caracteres.',
