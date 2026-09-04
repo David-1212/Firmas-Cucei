@@ -10,6 +10,12 @@ use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
+// Fix ReverseProxy https://stackoverflow.com/questions/29912997/laravel-routes-behind-reverse-proxy
+if(getenv('APP_ENV') == 'production') {
+    URL::forceRootUrl(getenv('APP_URL'));
+    URL::forceScheme("https");
+}
+
 Route::get('/', function () {
     return redirect()->route('login');
 });
