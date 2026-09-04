@@ -157,13 +157,18 @@ class DocumentoController extends Controller
 
         // Guardar en una ruta determinística por código de alumno y id de documento
         // para que la firma sobreviva a borrados / re-importaciones del listado.
+        // Se guarda directamente en public/firmas/... para que la imagen sea
+        // accesible de forma pública sin depender del enlace simbólico storage.
         $codigo = $documento->alumno?->codigo ?: (string) $documento->alumno_id;
         $carpeta = 'firmas/' . $codigo;
         $nombre = $carpeta . '/' . $documento->id . '.png';
 
         // Si ya existe una firma para este documento, reutilizarla.
-        if (!\Storage::disk('public')->exists($nombre)) {
-            \Storage::disk('public')->put($nombre, $imagen);
+        if (!file_exists(public_path($nombre))) {
+            if (!is_dir(public_path($carpeta))) {
+                mkdir(public_path($carpeta), 0755, true);
+            }
+            file_put_contents(public_path($nombre), $imagen);
         }
 
         $firma = Firma::where('documento_id', $documento->id)->latest()->first();
@@ -188,8 +193,8 @@ class DocumentoController extends Controller
         $this->authorizeAdmin();
 
         foreach ($documento->firmas as $firma) {
-            if ($firma->ruta_imagen && \Storage::disk('public')->exists($firma->ruta_imagen)) {
-                \Storage::disk('public')->delete($firma->ruta_imagen);
+            if ($firma->ruta_imagen && file_exists(public_path($firma->ruta_imagen))) {
+                unlink(public_path($firma->ruta_imagen));
             }
         }
 

@@ -8,7 +8,6 @@ use App\Models\Firma;
 use App\Models\TipoDocumento;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class FirmaPersistenciaTest extends TestCase
@@ -29,7 +28,7 @@ class FirmaPersistenciaTest extends TestCase
         $firma = Firma::where('documento_id', $doc->id)->first();
         $this->assertNotNull($firma);
         $this->assertEquals('firmas/101010101/' . $doc->id . '.png', $firma->ruta_imagen);
-        $this->assertTrue(Storage::disk('public')->exists($firma->ruta_imagen));
+        $this->assertTrue(file_exists(public_path($firma->ruta_imagen)));
     }
 
     public function test_la_firma_se_reutiliza_si_ya_estaba_firmado(): void
@@ -44,7 +43,7 @@ class FirmaPersistenciaTest extends TestCase
         ])->assertRedirect();
 
         $ruta = Firma::where('documento_id', $doc->id)->first()->ruta_imagen;
-        $contenido = Storage::disk('public')->get($ruta);
+        $contenido = file_get_contents(public_path($ruta));
 
         // Firmar de nuevo: reutiliza la misma ruta y no crea otra firma.
         $this->actingAs($admin)->post(route('documentos.storeFirma', $doc), [
@@ -52,7 +51,7 @@ class FirmaPersistenciaTest extends TestCase
         ])->assertRedirect();
 
         $this->assertEquals(1, Firma::where('documento_id', $doc->id)->count());
-        $this->assertEquals(Storage::disk('public')->get($ruta), $contenido);
+        $this->assertEquals(file_get_contents(public_path($ruta)), $contenido);
     }
 
     public function test_vaciar_todo_no_borra_las_imagenes_de_firmas(): void
@@ -67,7 +66,7 @@ class FirmaPersistenciaTest extends TestCase
         ])->assertRedirect();
 
         $ruta = Firma::where('documento_id', $doc->id)->first()->ruta_imagen;
-        $this->assertTrue(Storage::disk('public')->exists($ruta));
+        $this->assertTrue(file_exists(public_path($ruta)));
 
         // Simular vaciarTodo directamente con captcha resuelto vía sesión
         session(['captcha_answer' => 42]);
@@ -76,7 +75,7 @@ class FirmaPersistenciaTest extends TestCase
         ])->assertRedirect();
 
         $this->assertEquals(0, \App\Models\Alumno::count());
-        $this->assertTrue(Storage::disk('public')->exists($ruta));
+        $this->assertTrue(file_exists(public_path($ruta)));
     }
 
     public function test_borrar_un_alumno_conserva_sus_documentos_y_firmas(): void
@@ -92,7 +91,7 @@ class FirmaPersistenciaTest extends TestCase
 
         $firma = Firma::where('documento_id', $doc->id)->first();
         $ruta = $firma->ruta_imagen;
-        $this->assertTrue(Storage::disk('public')->exists($ruta));
+        $this->assertTrue(file_exists(public_path($ruta)));
 
         $this->actingAs($admin)
             ->delete(route('alumnos.destroy', $alumno))
@@ -101,7 +100,7 @@ class FirmaPersistenciaTest extends TestCase
         $this->assertDatabaseMissing('alumnos', ['id' => $alumno->id]);
         $this->assertDatabaseHas('documentos', ['id' => $doc->id, 'alumno_id' => null]);
         $this->assertDatabaseHas('firmas', ['id' => $firma->id, 'alumno_id' => null]);
-        $this->assertTrue(Storage::disk('public')->exists($ruta));
+        $this->assertTrue(file_exists(public_path($ruta)));
     }
 
     public function test_reimportar_el_codigo_religa_documentos_y_firmas_al_nuevo_alumno(): void

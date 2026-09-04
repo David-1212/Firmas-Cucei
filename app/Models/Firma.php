@@ -34,6 +34,6 @@ class Firma extends Model
 
     public function getRutaStorageAttribute(): string
     {
-        return storage_path('app/public/' . $this->ruta_imagen);
+        return public_path($this->ruta_imagen);
     }
 }

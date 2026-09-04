@@ -60,7 +60,7 @@
                                             <td class="px-6 py-4">
                                                 @if($doc->firma)
                                                     <a href="{{ route('documentos.show', $doc) }}" title="Ver firma del documento {{ $doc->folio }}" class="block">
-                                                        <img src="{{ asset('storage/' . $doc->firma->ruta_imagen) }}" alt="Firma del documento {{ $doc->folio }}"
+                                                        <img src="{{ asset($doc->firma->ruta_imagen) }}" alt="Firma del documento {{ $doc->folio }}"
                                                              class="h-14 w-28 object-contain object-center rounded-lg border border-gray-200 bg-white shadow-sm hover:shadow transition">
                                                     </a>
                                                 @else

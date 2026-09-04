@@ -56,7 +56,7 @@
                 </div>
                 <div class="p-6">
                     @if($documento->firma)
-                        <img src="{{ asset('storage/' . $documento->firma->ruta_imagen) }}" class="border border-gray-200 rounded-lg bg-white max-h-48 shadow-sm" alt="Firma del alumno">
+                        <img src="{{ asset($documento->firma->ruta_imagen) }}" class="border border-gray-200 rounded-lg bg-white max-h-48 shadow-sm" alt="Firma del alumno">
                         <p class="text-xs text-gray-500 mt-2">
                             Firmado el {{ $documento->firma->created_at->format('d/m/Y H:i:s') }}
                             @if($documento->firma->usuario)

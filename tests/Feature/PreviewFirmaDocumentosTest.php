@@ -8,7 +8,6 @@ use App\Models\Firma;
 use App\Models\TipoDocumento;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class PreviewFirmaDocumentosTest extends TestCase
@@ -17,8 +16,6 @@ class PreviewFirmaDocumentosTest extends TestCase
 
     public function test_el_indice_de_documentos_muestra_el_preview_de_la_firma(): void
     {
-        Storage::fake('public');
-
         $admin = User::factory()->create(['role' => 'admin']);
         $tipo = TipoDocumento::factory()->create();
         $alumno = Alumno::factory()->create(['codigo' => '101010101']);
@@ -31,7 +28,10 @@ class PreviewFirmaDocumentosTest extends TestCase
         ]);
 
         $ruta = 'firmas/101010101/' . $doc->id . '.png';
-        Storage::disk('public')->put($ruta, 'firma');
+        if (!is_dir(public_path(dirname($ruta)))) {
+            mkdir(public_path(dirname($ruta)), 0755, true);
+        }
+        file_put_contents(public_path($ruta), 'firma');
 
         Firma::factory()->create([
             'alumno_id' => $alumno->id,
@@ -42,7 +42,7 @@ class PreviewFirmaDocumentosTest extends TestCase
         $response = $this->actingAs($admin)->get(route('documentos.index'));
 
         $response->assertOk();
-        $response->assertSee('storage/' . $ruta, false);
+        $response->assertSee($ruta, false);
     }
 
     public function test_el_indice_de_documentos_muestra_sin_firma(): void
