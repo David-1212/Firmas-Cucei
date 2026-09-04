@@ -205,8 +205,21 @@ class DocumentoController extends Controller
     public function buscarAlumnos(Request $request)
     {
         $termino = trim($request->input('q', ''));
-        $alumnos = Alumno::buscar($termino)
-            ->limit(15)
+
+        // Limitar al último ciclo, igual que el listado de alumnos: una misma
+        // persona (mismo código) puede existir en varios ciclos y aquí cada
+        // persona debe aparecer una sola vez (la del ciclo vigente).
+        $ultimaImportacion = \App\Models\Importacion::whereNotNull('ciclo')
+            ->where('ciclo', '!=', '')
+            ->latest('id')
+            ->first();
+
+        $query = Alumno::buscar($termino);
+        if ($ultimaImportacion) {
+            $query->whereHas('importaciones', fn ($qi) => $qi->where('importaciones.id', $ultimaImportacion->id));
+        }
+
+        $alumnos = $query->limit(15)
             ->get(['id', 'codigo', 'matricula', 'nombre_completo', 'carrera', 'ciclo_ingreso', 'status']);
 
         return response()->json($alumnos->map(fn ($a) => [
