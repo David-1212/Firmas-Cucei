@@ -1,9 +1,4 @@
-# Límites para subida de archivos CSV grandes
-php_value upload_max_filesize 256M
-php_value post_max_size 260M
-php_value memory_limit 512M
-php_value max_execution_time 600
-php_value max_input_time 600
+
 
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
