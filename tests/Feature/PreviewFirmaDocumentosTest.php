@@ -27,22 +27,17 @@ class PreviewFirmaDocumentosTest extends TestCase
             'estado' => 'firmado',
         ]);
 
-        $ruta = 'firmas/101010101/' . $doc->id . '.png';
-        if (!is_dir(public_path(dirname($ruta)))) {
-            mkdir(public_path(dirname($ruta)), 0755, true);
-        }
-        file_put_contents(public_path($ruta), 'firma');
-
+        $base64 = base64_encode('firma-png');
         Firma::factory()->create([
             'alumno_id' => $alumno->id,
             'documento_id' => $doc->id,
-            'ruta_imagen' => $ruta,
+            'imagen' => $base64,
         ]);
 
         $response = $this->actingAs($admin)->get(route('documentos.index'));
 
         $response->assertOk();
-        $response->assertSee($ruta, false);
+        $response->assertSee('data:image/png;base64,' . $base64, false);
     }
 
     public function test_el_indice_de_documentos_muestra_sin_firma(): void

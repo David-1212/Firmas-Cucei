@@ -24,7 +24,7 @@
                                 <div class="text-xs text-gray-400">Capturó: {{ $firma->usuario?->name ?? '—' }}</div>
                             </div>
                             <a href="{{ route('firmas.show', $firma) }}" class="block border border-gray-200 rounded-xl p-3 inline-block bg-gray-50 hover:border-brand-300 hover:shadow-lg transition">
-                                <img src="{{ asset($firma->ruta_imagen) }}" class="h-32 bg-white" alt="Firma {{ $loop->iteration }}">
+                                <img src="{{ $firma->imagen_src }}" class="h-32 bg-white" alt="Firma {{ $loop->iteration }}">
                             </a>
                         </div>
                     @empty

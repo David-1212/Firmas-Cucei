@@ -14,7 +14,8 @@ class FirmaFactory extends Factory
     {
         return [
             'documento_id' => Documento::factory(),
-            'ruta_imagen' => 'firmas/test/' . $this->faker->unique()->numberBetween(1000, 9999) . '.png',
+            'ruta_imagen' => '',
+            'imagen' => base64_encode($this->faker->sha256()),
             'formato' => 'png',
         ];
     }

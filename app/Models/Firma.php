@@ -13,9 +13,24 @@ class Firma extends Model
         'alumno_id',
         'documento_id',
         'ruta_imagen',
+        'imagen',
         'formato',
         'user_id',
     ];
+
+    /**
+     * Fuente de la imagen para el <img>.
+     * Prioriza la imagen guardada en base de datos (base64); para firmas
+     * antiguas sin imagen, cae en la ruta pública del archivo.
+     */
+    public function getImagenSrcAttribute(): string
+    {
+        if ($this->imagen) {
+            return 'data:image/' . ($this->formato ?: 'png') . ';base64,' . $this->imagen;
+        }
+
+        return $this->ruta_imagen ? asset($this->ruta_imagen) : '';
+    }
 
     public function alumno()
     {
@@ -30,10 +45,5 @@ class Firma extends Model
     public function usuario()
     {
         return $this->belongsTo(User::class, 'user_id');
-    }
-
-    public function getRutaStorageAttribute(): string
-    {
-        return public_path($this->ruta_imagen);
     }
 }

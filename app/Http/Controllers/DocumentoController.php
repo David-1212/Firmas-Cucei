@@ -124,6 +124,8 @@ class DocumentoController extends Controller
 
     /**
      * Guarda la firma dibujada (imagen base64) de un documento.
+     * La imagen se almacena directamente en la base de datos
+     * (columna firmas.imagen) sin tocar el filesystem.
      */
     public function storeFirma(Request $request, Documento $documento)
     {
@@ -136,7 +138,7 @@ class DocumentoController extends Controller
             'firma_data.required' => 'Debes dibujar tu firma.',
         ]);
 
-        // Decodificar imagen base64 (data:image/png;base64,xxxx)
+        // Extraer payload base64 sin el prefijo "data:image/png;base64,"
         $payload = $data['firma_data'];
         if (str_starts_with($payload, 'data:')) {
             $partes = explode(',', $payload, 2);
@@ -155,31 +157,18 @@ class DocumentoController extends Controller
             return back()->withErrors(['firma_data' => 'La imagen de la firma es demasiado grande.']);
         }
 
-        // Guardar en una ruta determinística por código de alumno y id de documento
-        // para que la firma sobreviva a borrados / re-importaciones del listado.
-        // Se guarda directamente en public/firmas/... para que la imagen sea
-        // accesible de forma pública sin depender del enlace simbólico storage.
-        $codigo = $documento->alumno?->codigo ?: (string) $documento->alumno_id;
-        $carpeta = 'firmas/' . $codigo;
-        $nombre = $carpeta . '/' . $documento->id . '.png';
-
-        // Si ya existe una firma para este documento, reutilizarla.
-        if (!file_exists(public_path($nombre))) {
-            if (!is_dir(public_path($carpeta))) {
-                mkdir(public_path($carpeta), 0755, true);
-            }
-            file_put_contents(public_path($nombre), $imagen);
-        }
-
+        // Si ya existe una firma registrada para este documento, reutilizarla.
         $firma = Firma::where('documento_id', $documento->id)->latest()->first();
         if (!$firma) {
             $firma = Firma::create([
                 'alumno_id' => $documento->alumno_id,
                 'documento_id' => $documento->id,
-                'ruta_imagen' => $nombre,
+                'imagen' => $payload,
                 'formato' => 'png',
                 'user_id' => auth()->id(),
             ]);
+        } elseif (!$firma->imagen) {
+            $firma->update(['imagen' => $payload]);
         }
 
         $documento->update(['estado' => 'firmado']);
@@ -191,12 +180,6 @@ class DocumentoController extends Controller
     public function destroy(Documento $documento)
     {
         $this->authorizeAdmin();
-
-        foreach ($documento->firmas as $firma) {
-            if ($firma->ruta_imagen && file_exists(public_path($firma->ruta_imagen))) {
-                unlink(public_path($firma->ruta_imagen));
-            }
-        }
 
         $documento->delete();
 

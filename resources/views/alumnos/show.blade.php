@@ -100,8 +100,8 @@
                     <div class="p-6">
                         <div class="grid grid-cols-3 gap-2">
                             @forelse($firmas as $firma)
-                                <a href="{{ asset($firma->ruta_imagen) }}" target="_blank" title="{{ $firma->created_at->format('d/m/Y H:i') }} · {{ $firma->documento?->tipoDocumento?->nombre }}">
-                                    <img src="{{ asset($firma->ruta_imagen) }}" class="border border-gray-200 rounded-lg bg-white shadow-sm" alt="Firma {{ $loop->iteration }}">
+                                <a href="{{ $firma->imagen_src }}" target="_blank" title="{{ $firma->created_at->format('d/m/Y H:i') }} · {{ $firma->documento?->tipoDocumento?->nombre }}">
+                                    <img src="{{ $firma->imagen_src }}" class="border border-gray-200 rounded-lg bg-white shadow-sm" alt="Firma {{ $loop->iteration }}">
                                 </a>
                             @empty
                                 <p class="text-sm text-gray-500 col-span-3">Este alumno aún no tiene firmas.</p>
