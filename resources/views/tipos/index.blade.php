@@ -32,30 +32,31 @@
                 </div>
                 <div class="p-6 space-y-3">
                     @forelse($tipos as $tipo)
-                        <div class="border border-gray-100 rounded-xl bg-gray-50/50 p-4 space-y-3">
-                            <form method="POST" action="{{ route('tipos.update', $tipo) }}" class="flex flex-col lg:flex-row gap-4 lg:items-end">
-                                @csrf @method('PATCH')
-                                <div class="flex-1 lg:max-w-sm">
-                                    <x-input-label for="nombre_{{ $tipo->id }}" value="Nombre" />
-                                    <x-text-input id="nombre_{{ $tipo->id }}" class="block mt-1 w-full" type="text" name="nombre" :value="old('nombre', $tipo->nombre)" required />
+                        <div class="border border-gray-100 rounded-xl bg-gray-50/50 p-4 {{ $tipo->sistema ? 'border-emerald-200 bg-emerald-50/40' : '' }}">
+                            @if($tipo->sistema)
+                                <div class="mb-3">
+                                    <span class="inline-flex items-center gap-1.5 badge bg-emerald-100 text-emerald-700">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+                                        Tipo fijo del sistema
+                                    </span>
+                                    <span class="text-xs text-gray-500 ml-2">No se puede modificar ni eliminar.</span>
                                 </div>
-                                <div class="flex-[2]">
-                                    <x-input-label for="descripcion_{{ $tipo->id }}" value="Descripción (opcional)" />
-                                    <x-text-input id="descripcion_{{ $tipo->id }}" class="block mt-1 w-full" type="text" name="descripcion" :value="old('descripcion', $tipo->descripcion)" />
+                            @endif
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-800">{{ $tipo->nombre }}</div>
+                                    @if($tipo->descripcion)<div class="text-xs text-gray-500">{{ $tipo->descripcion }}</div>@endif
                                 </div>
-                                <div class="flex flex-wrap items-center gap-x-3 gap-y-2 lg:shrink-0">
-                                    <label class="inline-flex items-center gap-2 text-xs font-medium text-gray-700 cursor-pointer select-none">
-                                        <input type="checkbox" name="activo" value="1" {{ $tipo->activo ? 'checked' : '' }} class="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
-                                        Activo
-                                    </label>
-                                    <button type="submit" class="action-edit" title="Guardar cambios">
-                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 18.052a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>
-                                        Guardar
-                                    </button>
+                                <div class="flex items-center gap-3">
+                                    @if($tipo->activo)
+                                        <span class="badge bg-green-100 text-green-700">Activo</span>
+                                    @else
+                                        <span class="badge bg-gray-200 text-gray-600">Inactivo</span>
+                                    @endif
                                     <span class="text-xs text-gray-400">{{ $tipo->documentos_count }} docs</span>
                                 </div>
-                            </form>
-                            @if($tipo->documentos_count === 0)
+                            </div>
+                            @if(!$tipo->sistema && $tipo->documentos_count === 0)
                                 <form method="POST" action="{{ route('tipos.destroy', $tipo) }}" class="mt-2" data-confirm="¿Eliminar este tipo de documento?">
                                     @csrf @method('DELETE')
                                     <button type="submit" class="action-danger" title="Eliminar">

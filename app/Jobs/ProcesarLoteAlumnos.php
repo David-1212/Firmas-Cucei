@@ -36,13 +36,28 @@ class ProcesarLoteAlumnos implements ShouldQueue
         }
 
         $insertadas = 0;
+        $reutilizadas = 0;
         $insertados = [];
+        $reutilizados = [];
         $primeroPorCodigo = [];
 
-        // Cada fila del CSV se inserta como un registro de alumno nuevo, aunque
-        // el código ya exista (misma persona en otro ciclo): los ciclos viven en
-        // registros distintos y el listado se filtra por ciclo.
+        // Alumnos de ESTE ciclo que ya tienen al menos una firma: al re-importar
+        // un CSV con datos repetidos no se duplican ni se sobreescriben; se
+        // reutiliza el registro existente (con sus documentos firmados) y se le
+        // vincula a la importación actual.
+        $firmadosEnCiclo = $this->alumnosFirmadosEnCiclo(
+            array_column($this->filas, 'codigo'),
+            $importacion->ciclo
+        );
+
         foreach ($this->filas as $fila) {
+            $codigo = $fila['codigo'] ?? '';
+            if (isset($firmadosEnCiclo[$codigo])) {
+                $reutilizados[] = $firmadosEnCiclo[$codigo];
+                $reutilizadas++;
+                continue;
+            }
+
             try {
                 $alumno = Alumno::create([
                     'matricula' => $fila['matricula'] ?? null,
@@ -67,12 +82,13 @@ class ProcesarLoteAlumnos implements ShouldQueue
         // (código-idAlumno-secuencia) se relaciona de nuevo con el nuevo registro.
         $this->religarDocumentosHuérfanos($primeroPorCodigo);
 
-        // Vincular SOLO los registros insertados en este lote a la importación
-        // (y por tanto a su ciclo): los registros de ciclos anteriores no se
-        // tocan, así cada ciclo tiene sus propios registros.
-        $this->vincularAlumnosAImportacion($insertados);
+        // Vincular los registros de este lote a la importación (y por tanto a su
+        // ciclo): los nuevos y los reutilizados (ya firmados en este ciclo). Los
+        // registros de ciclos anteriores no se tocan.
+        $this->vincularAlumnosAImportacion(array_merge($insertados, $reutilizados));
 
         $importacion->increment('insertadas', $insertadas);
+        $importacion->increment('duplicadas', $reutilizadas);
         $importacion->increment('procesadas', count($this->filas));
 
         $ultimos = collect($this->filas)->take(-40)->map(fn ($f) => [
@@ -113,10 +129,34 @@ class ProcesarLoteAlumnos implements ShouldQueue
     }
 
     /**
+     * Devuelve un mapa codigo => id del alumno que, en el ciclo indicado, ya
+     * tiene al menos una firma registrada. Se usa para no duplicar ni
+     * sobreescribir registros con documentos firmados al re-importar un CSV.
+     */
+    private function alumnosFirmadosEnCiclo(array $codigos, ?string $ciclo): array
+    {
+        $codigos = array_filter(array_map('trim', $codigos));
+        if (empty($codigos) || $ciclo === null || $ciclo === '') {
+            return [];
+        }
+
+        return Alumno::query()
+            ->whereIn('codigo', $codigos)
+            ->whereHas('importaciones', fn ($q) => $q->where('importaciones.ciclo', $ciclo))
+            ->whereHas('firmas')
+            ->get(['id', 'codigo'])
+            ->groupBy('codigo')
+            ->map(fn ($grupo) => $grupo->first()->id)
+            ->all();
+    }
+
+    /**
      * Al volver a importar un código que antes fue eliminado, re-vincula los
      * documentos (y sus firmas) que quedaron huérfanos (alumno_id NULL) al
-     * registro del alumno reimportado, usando el folio del documento
-     * (código-idAlumno-secuencia). El mapa es codigo => id del registro nuevo.
+     * registro del alumno reimportado. Se casa por el código del alumno
+     * guardado en el documento (codigo_alumno) y, como fallback para datos
+     * viejos, por el prefijo del folio (código-idAlumno-secuencia).
+     * El mapa es codigo => id del registro nuevo.
      */
     private function religarDocumentosHuérfanos(array $primeroPorCodigo): void
     {
@@ -126,7 +166,10 @@ class ProcesarLoteAlumnos implements ShouldQueue
 
         foreach ($primeroPorCodigo as $codigo => $alumnoId) {
             $documentos = Documento::whereNull('alumno_id')
-                ->where('folio', 'like', $codigo . '-%')
+                ->where(function ($q) use ($codigo) {
+                    $q->where('codigo_alumno', $codigo)
+                        ->orWhere('folio', 'like', $codigo . '-%');
+                })
                 ->get(['id']);
 
             if ($documentos->isEmpty()) {
@@ -135,7 +178,7 @@ class ProcesarLoteAlumnos implements ShouldQueue
 
             $docIds = $documentos->pluck('id')->all();
 
-            Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumnoId]);
+            Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumnoId, 'codigo_alumno' => $codigo]);
             Firma::whereIn('documento_id', $docIds)
                 ->whereNull('alumno_id')
                 ->update(['alumno_id' => $alumnoId]);

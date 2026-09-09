@@ -52,9 +52,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::resource('usuarios', UsuarioController::class);
         Route::resource('tipos', TipoDocumentoController::class)->except(['create', 'edit', 'show']);
 
-        Route::get('importaciones', [ImportController::class, 'index'])->name('importaciones.index');
+        Route::get('importaciones', fn () => redirect()->route('alumnos.index'))->name('importaciones.index');
         Route::post('importaciones', [ImportController::class, 'store'])->name('importaciones.store');
         Route::post('importaciones/vaciar', [ImportController::class, 'vaciarTodo'])->name('importaciones.vaciar');
+        Route::post('documentos/vaciar', [ImportController::class, 'vaciarDocumentos'])->name('documentos.vaciar');
         Route::post('importaciones/{importacion}/cancelar', [ImportController::class, 'cancelar'])->name('importaciones.cancelar');
         Route::get('importaciones/progreso', [ImportController::class, 'progreso'])->name('importaciones.progreso');
     });

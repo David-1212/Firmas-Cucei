@@ -17,6 +17,7 @@ class Importacion extends Model
         'archivo',
         'nombre_original',
         'ciclo',
+        'tipo',
         'total_filas',
         'procesadas',
         'insertadas',

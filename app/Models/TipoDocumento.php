@@ -13,11 +13,19 @@ class TipoDocumento extends Model
         'nombre',
         'descripcion',
         'activo',
+        'sistema',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'sistema' => 'boolean',
     ];
+
+    /** Tipos fijos creados por el sistema y que no pueden eliminarse ni desactivarse. */
+    public function scopeFijos($query)
+    {
+        return $query->where('sistema', true);
+    }
 
     public function documentos()
     {

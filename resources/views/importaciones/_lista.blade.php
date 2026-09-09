@@ -33,6 +33,9 @@
         </div>
         <div class="ins mt-2 flex flex-wrap items-center gap-2">
             <span class="badge bg-green-100 text-green-700">{{ $importacion->insertadas }} alumnos</span>
+            @if($importacion->duplicadas > 0)
+                <span class="badge bg-purple-100 text-purple-700">{{ $importacion->duplicadas }} ya firmados (sin duplicar)</span>
+            @endif
         </div>
         @if($importacion->estado === 'completado')
             <div class="mt-2 text-xs text-gray-500 bg-white border border-gray-100 p-2 rounded-lg">

@@ -53,6 +53,12 @@ class DatabaseSeeder extends Seeder
             );
         }
 
+        // Tipo fijo del sistema: la credencial. No puede eliminarse ni desactivarse.
+        TipoDocumento::firstOrCreate(
+            ['nombre' => 'Credencial'],
+            ['activo' => true, 'sistema' => true]
+        );
+
         // Alumnos de ejemplo con datos aleatorios (solo si no hay ninguno)
         if (Alumno::count() === 0) {
             Alumno::factory()->count(25)->create();

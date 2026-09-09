@@ -38,6 +38,12 @@ class ProcesarImportacionCsv implements ShouldQueue
 
         $importacion->update(['estado' => 'procesando']);
 
+        // Importación de documentos (credenciales): el CSV se mapea distinto.
+        if ($importacion->tipo === 'documentos') {
+            $this->procesarDocumentos($importacion, $archivo);
+            return;
+        }
+
         $chunkSize = (int)(config('import.csv_chunk_size', 2000));
         $total = 0;
         $initialized = false;
@@ -136,7 +142,7 @@ class ProcesarImportacionCsv implements ShouldQueue
     private function mapearEncabezados(array $encabezado): ?array
     {
         $posibles = [
-            'matricula' => ['matricula', 'matrícula', 'mat', 'no. matricula', 'nomatricula'],
+            'matricula' => ['matricula', 'matrícula', 'mat', 'no. matricula', 'nomatricula', 'unique id', 'unique-id', 'uniqueid', 'unico'],
             'codigo' => ['codigo de alumno', 'codigo de alumno', 'codigo', 'código', 'codigo alumno', 'code', 'clave', 'no. control', 'nocontrol', 'folio'],
             'nombre_completo' => ['nombre completo', 'nombrecompleto', 'nombre', 'name', 'nombres', 'nombre y apellidos', 'alumno'],
             'carrera' => ['carrera', 'programa', 'licenciatura', 'ingenieria'],
@@ -224,5 +230,137 @@ class ProcesarImportacionCsv implements ShouldQueue
         }
 
         return $existente . ' / ' . $nuevo;
+    }
+
+    /**
+     * Procesa una importación de documentos (credenciales). El CSV puede traer
+     * las columnas: No., CODIGO, NOMBRE, UNIQUE ID, SEDE, CARRERA. Solo se
+     * usan CODIGO (para ligar al alumno) y UNIQUE ID (el folio de la
+     * credencial); el resto se ignora.
+     */
+    private function procesarDocumentos(Importacion $importacion, string $archivo): void
+    {
+        $chunkSize = (int)(config('import.csv_chunk_size', 2000));
+        $total = 0;
+        $initialized = false;
+        $porCodigo = [];
+        $linea = 0;
+
+        if (($fh = fopen($archivo, 'r')) !== false) {
+            while (($fila = fgetcsv($fh, 0, ',', '"', '\\')) !== false) {
+                $linea++;
+                if (!$initialized) {
+                    $initialized = true;
+
+                    $encabezado = array_map(function ($h) {
+                        $h = preg_replace('/^\xEF\xBB\xBF/', '', $h);
+                        return mb_strtolower(trim($h));
+                    }, $fila);
+
+                    $mapeo = $this->mapearEncabezadosDocumentos($encabezado);
+                    if ($mapeo === null) {
+                        // Sin encabezados conocidos: asumir orden fijo.
+                        $mapeo = ['codigo' => null, 'nombre_completo' => null, 'unique_id' => null];
+                        $sinEncabezados = true;
+                    } else {
+                        $sinEncabezados = false;
+                    }
+
+                    continue;
+                }
+
+                // Posición fija sin encabezados: No., CODIGO, NOMBRE, UNIQUE ID, SEDE, CARRERA
+                if ($sinEncabezados ?? false) {
+                    $codigo = trim((string)($fila[1] ?? ''));
+                    $nombre = trim((string)($fila[2] ?? ''));
+                    $uniqueId = trim((string)($fila[3] ?? ''));
+                } else {
+                    $registro = ['codigo' => null, 'nombre_completo' => null, 'unique_id' => null];
+                    foreach ($fila as $idx => $valor) {
+                        $campo = $mapeo[$idx] ?? null;
+                        if ($campo === null || !array_key_exists($campo, $registro)) {
+                            continue;
+                        }
+                        $valor = trim((string)$valor);
+                        if ($valor !== '') {
+                            $registro[$campo] = $valor;
+                        }
+                    }
+                    $codigo = $registro['codigo'];
+                    $nombre = $registro['nombre_completo'];
+                    $uniqueId = $registro['unique_id'];
+                }
+
+                if ($codigo === null || $codigo === '' || $uniqueId === null || $uniqueId === '') {
+                    continue;
+                }
+
+                // Un mismo código puede traer varias credenciales (un UNIQUE ID por fila).
+                if (isset($porCodigo[$codigo][$uniqueId])) {
+                    continue;
+                }
+                $porCodigo[$codigo][$uniqueId] = [
+                    'codigo' => $codigo,
+                    'nombre_completo' => $nombre ?? '',
+                    'unique_id' => $uniqueId,
+                ];
+                $total++;
+            }
+            fclose($fh);
+        }
+
+        $lotes = array_chunk(
+            collect($porCodigo)->flatMap(fn ($filas) => array_values($filas))->values()->all(),
+            $chunkSize
+        );
+
+        if (count($lotes) === 0) {
+            $importacion->forceFill([
+                'total_filas' => $total,
+                'estado' => 'completado',
+            ])->save();
+        } else {
+            $importacion->forceFill([
+                'total_filas' => $total,
+                'lotes_pendientes' => count($lotes),
+            ])->save();
+
+            foreach ($lotes as $lote) {
+                ProcesarLoteDocumentos::dispatch($lote, $importacion->id);
+            }
+        }
+
+        if (file_exists($archivo)) {
+            @unlink($archivo);
+        }
+    }
+
+    private function mapearEncabezadosDocumentos(array $encabezado): ?array
+    {
+        $posibles = [
+            'codigo' => ['codigo de alumno', 'codigo', 'código', 'codigo alumno', 'code', 'clave', 'no. control', 'nocontrol'],
+            'nombre_completo' => ['nombre completo', 'nombrecompleto', 'nombre', 'name', 'nombres', 'nombre y apellidos', 'alumno'],
+            'unique_id' => ['unique id', 'unique-id', 'uniqueid', 'unico', 'folio'],
+        ];
+
+        $mapeo = array_fill(0, count($encabezado), null);
+        $usados = [];
+
+        foreach ($encabezado as $idx => $h) {
+            foreach ($posibles as $campo => $alias) {
+                if (in_array($h, $alias, true) && !in_array($campo, $usados, true)) {
+                    $mapeo[$idx] = $campo;
+                    $usados[] = $campo;
+                    break;
+                }
+            }
+        }
+
+        // Se necesitan codigo y unique id para ligar la credencial al alumno.
+        if (!in_array('codigo', $usados, true) || !in_array('unique_id', $usados, true)) {
+            return null;
+        }
+
+        return $mapeo;
     }
 }

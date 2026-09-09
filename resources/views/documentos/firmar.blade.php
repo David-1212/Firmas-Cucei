@@ -807,10 +807,6 @@
                 dibujarFondo();
 
 
-                historial =
-                    [];
-
-
                 haDibujado =
                     false;
 
@@ -842,6 +838,20 @@
                     ) {
 
                         return;
+
+                    }
+
+
+                    /*
+                     * Guardar el estado actual para que
+                     * se pueda deshacer el limpiado.
+                     */
+
+                    if (
+                        haDibujado
+                    ) {
+
+                        guardarEstado();
 
                     }
 
@@ -916,7 +926,7 @@
 
             btnDeshacer.addEventListener(
                 'click',
-                () => {
+                async () => {
 
                     const anterior =
                         historial.pop();
@@ -936,7 +946,7 @@
 
 
                     imagen.onload =
-                        () => {
+                        async () => {
 
                             ctx.clearRect(
                                 0,
@@ -951,6 +961,77 @@
                                 0,
                                 0
                             );
+
+
+                            /*
+                             * Si se deshicieron todos los
+                             * trazos ya no hay firma que
+                             * guardar.
+                             */
+
+                            haDibujado =
+                                historial.length > 0;
+
+
+                            /*
+                             * La Wacom dibuja su propia tinta
+                             * en su pantalla; al deshacer hay
+                             * que limpiarla físicamente para
+                             * que el cambio se vea reflejado.
+
+                             */
+
+                            if (
+                                stuConectada &&
+                                stuDevice
+                            ) {
+
+                                try {
+
+                                    await stuClearScreen();
+
+
+                                    setStuStatus(
+                                        'deshecho — vuelve a firmar',
+                                        true
+                                    );
+
+
+                                    setTimeout(
+                                        () => {
+
+                                            if (
+                                                stuConectada
+                                            ) {
+
+                                                setStuStatus(
+                                                    'captura activa',
+                                                    true
+                                                );
+
+                                            }
+
+                                        },
+                                        1000
+                                    );
+
+
+                                } catch (error) {
+
+                                    console.error(
+                                        'No se pudo limpiar Wacom:',
+                                        error
+                                    );
+
+
+                                    setStuStatus(
+                                        'error al limpiar',
+                                        false
+                                    );
+
+                                }
+
+                            }
 
                         };
 

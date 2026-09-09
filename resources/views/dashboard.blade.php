@@ -9,7 +9,7 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             @if($listo)
                 <div class="mb-6 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                    Hay una importación de alumnos en proceso en segundo plano. Puedes ver su progreso en la sección <a href="{{ route('importaciones.index') }}" class="underline font-medium">Importar CSV</a>.
+                    Hay una importación de alumnos en proceso en segundo plano. Puedes ver su progreso en la sección <a href="{{ route('alumnos.index') }}" class="underline font-medium">Alumnos</a>.
                 </div>
             @endif
 
@@ -87,7 +87,7 @@
                     <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                         <h3 class="font-semibold text-gray-800">Últimas importaciones</h3>
                         @if(auth()->user()->role === 'admin')
-                            <a href="{{ route('importaciones.index') }}" class="text-sm font-medium text-brand-600 hover:text-brand-800 hover:underline">Ver todas</a>
+                            <a href="{{ route('alumnos.index') }}" class="text-sm font-medium text-brand-600 hover:text-brand-800 hover:underline">Ver todas</a>
                         @endif
                     </div>
                     <div class="px-6 py-4">

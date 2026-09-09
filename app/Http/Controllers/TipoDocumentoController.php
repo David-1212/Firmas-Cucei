@@ -41,6 +41,10 @@ class TipoDocumentoController extends Controller
             'nombre.unique' => 'Ya existe un tipo de documento con ese nombre.',
         ]);
 
+        if ($tipo->sistema) {
+            return back()->withErrors(['error' => 'El tipo "' . $tipo->nombre . '" es fijo del sistema y no puede modificarse.']);
+        }
+
         $tipo->update([
             'nombre' => $data['nombre'],
             'descripcion' => $data['descripcion'] ?? null,
@@ -53,6 +57,10 @@ class TipoDocumentoController extends Controller
 
     public function destroy(TipoDocumento $tipo)
     {
+        if ($tipo->sistema) {
+            return back()->withErrors(['error' => 'El tipo "' . $tipo->nombre . '" es fijo del sistema y no puede eliminarse.']);
+        }
+
         if ($tipo->documentos()->exists()) {
             return back()->withErrors(['error' => 'No se puede eliminar porque existen documentos asociados a este tipo.']);
         }

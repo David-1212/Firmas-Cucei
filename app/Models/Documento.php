@@ -11,6 +11,7 @@ class Documento extends Model
 
     protected $fillable = [
         'alumno_id',
+        'codigo_alumno',
         'tipo_documento_id',
         'folio',
         'observaciones',

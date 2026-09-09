@@ -77,6 +77,20 @@ class AlumnoController extends Controller
                 ->pluck('status');
         });
 
+        // Panel de importación (solo admin): últimas importaciones de alumnos,
+        // si hay alguna en curso y el captcha para la zona de peligro.
+        $importaciones = Importacion::where('tipo', 'alumnos')
+            ->with('usuario')
+            ->latest()
+            ->limit(100)
+            ->get();
+
+        $procesando = Importacion::where('tipo', 'alumnos')
+            ->whereIn('estado', ['pendiente', 'procesando'])
+            ->exists();
+
+        $captcha_imagen = app(\App\Services\CaptchaService::class)->generar();
+
         return view('alumnos.index', compact(
             'alumnos',
             'busqueda',
@@ -84,7 +98,10 @@ class AlumnoController extends Controller
             'filtroStatus',
             'carreras',
             'cicloUltimo',
-            'statuses'
+            'statuses',
+            'importaciones',
+            'procesando',
+            'captcha_imagen'
         ));
     }
 

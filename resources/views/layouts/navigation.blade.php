@@ -27,9 +27,6 @@
                         {{ __('Documentos') }}
                     </x-nav-link>
                     @if(auth()->user()->role === 'admin')
-                        <x-nav-link :href="route('importaciones.index')" :active="request()->routeIs('importaciones.*')">
-                            {{ __('Importar CSV') }}
-                        </x-nav-link>
                         <x-nav-link :href="route('usuarios.index')" :active="request()->routeIs('usuarios.*')">
                             {{ __('Usuarios') }}
                         </x-nav-link>
@@ -108,9 +105,6 @@
                 {{ __('Documentos') }}
             </x-responsive-nav-link>
             @if(auth()->user()->role === 'admin')
-                <x-responsive-nav-link :href="route('importaciones.index')" :active="request()->routeIs('importaciones.*')">
-                    {{ __('Importar CSV') }}
-                </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('usuarios.index')" :active="request()->routeIs('usuarios.*')">
                     {{ __('Usuarios') }}
                 </x-responsive-nav-link>

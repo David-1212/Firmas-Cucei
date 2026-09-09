@@ -10,19 +10,6 @@ use Illuminate\Support\Facades\Storage;
 
 class ImportController extends Controller
 {
-    public function index(Request $request)
-    {
-        $importaciones = Importacion::with('usuario')
-            ->latest()
-            ->paginate(20);
-
-        $procesando = Importacion::where('estado', 'procesando')->exists();
-
-        $captcha_imagen = app(\App\Services\CaptchaService::class)->generar();
-
-        return view('importaciones.index', compact('importaciones', 'procesando', 'captcha_imagen'));
-    }
-
     /**
      * Elimina todos los alumnos (y su historial de documentos/firmas).
      * Solo admin. Requiere confirmación con captcha.
@@ -51,19 +38,47 @@ class ImportController extends Controller
         // Limpiar archivos temporales de importación y su historial
         Importacion::query()->delete();
 
-        return redirect()->route('importaciones.index')
+        return redirect()->route('alumnos.index')
             ->with('success', "Se eliminaron {$total} alumnos y todo su historial correctamente.");
+    }
+
+    /**
+     * Elimina todos los documentos (y sus firmas), conservando a los alumnos.
+     * Solo admin. Requiere confirmación con captcha.
+     */
+    public function vaciarDocumentos(Request $request)
+    {
+        abort_unless($request->user()->role === 'admin', 403, 'Solo el administrador puede realizar esta acción.');
+
+        $data = $request->validate([
+            'captcha' => 'required|string',
+        ], [
+            'captcha.required' => 'Debes ingresar el resultado del captcha para confirmar.',
+        ]);
+
+        $captchaService = app(\App\Services\CaptchaService::class);
+        if (!$captchaService->verificar($data['captcha'])) {
+            return back()->withErrors(['captcha' => 'El resultado del captcha es incorrecto. No se eliminó nada.']);
+        }
+
+        $total = \App\Models\Documento::count();
+        \App\Models\Documento::query()->delete(); // cascada a firmas (constrained cascadeOnDelete)
+
+        return redirect()->route('documentos.index')
+            ->with('success', "Se eliminaron {$total} documentos con su historial correctamente.");
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'archivo' => 'required|file|mimes:csv,txt|max:40960',
-            'ciclo' => 'required|string|max:20',
+            'ciclo' => ['nullable', 'string', 'max:20', 'required_unless:tipo,documentos'],
+            'tipo' => 'nullable|in:alumnos,documentos',
         ], [
             'archivo.required' => 'Selecciona un archivo CSV.',
             'archivo.mimes' => 'El archivo debe ser CSV.',
             'archivo.max' => 'El archivo no puede ser mayor a 40 MB.',
+            'ciclo.required_if' => 'El ciclo (semestre) es obligatorio para importar alumnos.',
             'ciclo.required' => 'El ciclo (semestre) es obligatorio.',
         ]);
 
@@ -76,7 +91,8 @@ class ImportController extends Controller
             'user_id' => auth()->id(),
             'archivo' => $nombre,
             'nombre_original' => $archivo->getClientOriginalName(),
-            'ciclo' => $data['ciclo'],
+            'ciclo' => $data['ciclo'] ?? null,
+            'tipo' => $data['tipo'] ?? 'alumnos',
             'estado' => 'pendiente',
         ]);
 
@@ -87,11 +103,11 @@ class ImportController extends Controller
         if ($request->ajax()) {
             return response()->json([
                 'ok' => true,
-                'importacion' => $importacion->fresh()->only(['id', 'ciclo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas']),
+                'importacion' => $importacion->fresh()->only(['id', 'ciclo', 'tipo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas']),
             ]);
         }
 
-        return redirect()->route('importaciones.index')
+        return redirect()->route('alumnos.index')
             ->with('success', 'Archivo ' . $archivo->getClientOriginalName() . ' recibido. Se está procesando en segundo plano. Refresca la página para ver el progreso.');
     }
 
@@ -112,7 +128,7 @@ class ImportController extends Controller
     {
         $activas = Importacion::whereIn('estado', ['pendiente', 'procesando'])
             ->latest()
-            ->get(['id', 'ciclo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas', 'ultimos_codigos', 'created_at', 'updated_at']);
+            ->get(['id', 'ciclo', 'tipo', 'nombre_original', 'estado', 'total_filas', 'procesadas', 'insertadas', 'duplicadas', 'errores', 'ultimos_codigos', 'created_at', 'updated_at']);
 
         return response()->json($activas);
     }

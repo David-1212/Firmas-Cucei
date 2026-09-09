@@ -16,6 +16,8 @@ class ImportacionFactory extends Factory
             'user_id' => User::factory(),
             'archivo' => null,
             'nombre_original' => 'alumnos.csv',
+            'ciclo' => null,
+            'tipo' => 'alumnos',
             'total_filas' => 0,
             'procesadas' => 0,
             'insertadas' => 0,

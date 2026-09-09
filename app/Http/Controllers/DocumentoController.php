@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Alumno;
 use App\Models\Documento;
 use App\Models\Firma;
+use App\Models\Importacion;
 use App\Models\TipoDocumento;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,18 @@ class DocumentoController extends Controller
 
         $tipos = TipoDocumento::orderBy('nombre')->get();
 
-        return view('documentos.index', compact('documentos', 'busqueda', 'estado', 'tipo', 'tipos'));
+        $importacionesDocs = Importacion::where('tipo', 'documentos')
+            ->with('usuario')
+            ->latest()
+            ->limit(5)
+            ->get();
+        $procesandoDocs = Importacion::where('tipo', 'documentos')
+            ->whereIn('estado', ['pendiente', 'procesando'])
+            ->exists();
+
+        $captcha_imagen = app(\App\Services\CaptchaService::class)->generar();
+
+        return view('documentos.index', compact('documentos', 'busqueda', 'estado', 'tipo', 'tipos', 'importacionesDocs', 'procesandoDocs', 'captcha_imagen'));
     }
 
     public function create(Request $request)
@@ -61,6 +73,7 @@ class DocumentoController extends Controller
 
             $documento = Documento::create([
                 'alumno_id' => $alumno->id,
+                'codigo_alumno' => $alumno->codigo,
                 'tipo_documento_id' => $data['tipo_documento_id'],
                 'folio' => $folio,
                 'observaciones' => $data['observaciones'] ?? null,
@@ -234,12 +247,16 @@ class DocumentoController extends Controller
     /**
      * Re-vincula al alumno los documentos huérfanos del mismo código
      * (y sus firmas), que quedaron con alumno_id NULL tras eliminar y
-     * volver a importar al alumno.
+     * volver a importar al alumno. Casa por codigo_alumno y, como fallback
+     * para datos viejos, por el prefijo del folio (código-idAlumno-secuencia).
      */
     private function religarDocumentosHuérfanosDe(Alumno $alumno): void
     {
         $documentos = Documento::whereNull('alumno_id')
-            ->where('folio', 'like', $alumno->codigo . '-%')
+            ->where(function ($q) use ($alumno) {
+                $q->where('codigo_alumno', $alumno->codigo)
+                    ->orWhere('folio', 'like', $alumno->codigo . '-%');
+            })
             ->get(['id']);
 
         if ($documentos->isEmpty()) {
@@ -248,7 +265,7 @@ class DocumentoController extends Controller
 
         $docIds = $documentos->pluck('id')->all();
 
-        Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumno->id]);
+        Documento::whereIn('id', $docIds)->update(['alumno_id' => $alumno->id, 'codigo_alumno' => $alumno->codigo]);
         Firma::whereIn('documento_id', $docIds)
             ->whereNull('alumno_id')
             ->update(['alumno_id' => $alumno->id]);

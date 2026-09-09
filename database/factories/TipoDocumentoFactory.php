@@ -15,6 +15,7 @@ class TipoDocumentoFactory extends Factory
             'nombre' => $this->faker->unique()->words(2, true),
             'descripcion' => $this->faker->sentence(),
             'activo' => true,
+            'sistema' => false,
         ];
     }
 }
